@@ -1,19 +1,119 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
 stages:
-- test
-- secret-detection
-sast:
-  stage: test
+  - test
+  - secret-detection
+  - lint
+  - security
+  - build
+  - publish
+
+variables:
+  IMAGE_NAME: ${CI_REGISTRY_IMAGE}/open-brain-installer
+  DOCKER_TLS_CERTDIR: ""
+  SECRET_DETECTION_ENABLED: 'true'
+
 include:
 - template: Security/SAST.gitlab-ci.yml
 - template: Security/Secret-Detection.gitlab-ci.yml
-variables:
-  SECRET_DETECTION_ENABLED: 'true'
+
+sast:
+  stage: test
+
 secret_detection:
   stage: secret-detection
+
+# --- Lint & Format ---
+
+lint:js:
+  stage: lint
+  image: node:iron-alpine
+  script:
+    - cd docker
+    - npm install --omit=dev
+    - npx --yes eslint --no-eslintrc --env node --env es2021 --parser-options=ecmaVersion:2021 server.js || true
+  allow_failure: true
+
+lint:dockerfile:
+  stage: lint
+  image: hadolint/hadolint:latest-alpine
+  script:
+    - hadolint docker/Dockerfile || true
+  allow_failure: true
+
+lint:shell:
+  stage: lint
+  image: koalaman/shellcheck-alpine:latest
+  script:
+    - shellcheck scripts/*.sh docker/entrypoint.sh || true
+  allow_failure: true
+
+# --- Security ---
+
+security:trivy:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --no-progress .
+  allow_failure: true
+
+security:secrets:
+  stage: security
+  image:
+    name: trufflesecurity/trufflehog:latest
+    entrypoint: [""]
+  script:
+    - trufflehog filesystem --no-update --fail . || true
+  allow_failure: true
+
+# --- Build ---
+
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker build -f docker/Dockerfile -t "$IMAGE_NAME:${CI_COMMIT_SHA:0:8}" .
+    - docker save "$IMAGE_NAME:${CI_COMMIT_SHA:0:8}" > image.tar
+  artifacts:
+    paths:
+      - image.tar
+    expire_in: 1 hour
+
+# --- Publish ---
+
+publish:latest:
+  stage: publish
+  image: docker:latest
+  services:
+    - docker:dind
+  dependencies:
+    - build
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker load < image.tar
+    - docker tag "$IMAGE_NAME:${CI_COMMIT_SHA:0:8}" "$IMAGE_NAME:latest"
+    - docker push "$IMAGE_NAME:latest"
+    - docker push "$IMAGE_NAME:${CI_COMMIT_SHA:0:8}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+publish:tag:
+  stage: publish
+  image: docker:latest
+  services:
+    - docker:dind
+  dependencies:
+    - build
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker load < image.tar
+    - docker tag "$IMAGE_NAME:${CI_COMMIT_SHA:0:8}" "$IMAGE_NAME:$CI_COMMIT_TAG"
+    - docker push "$IMAGE_NAME:$CI_COMMIT_TAG"
+  rules:
+    - if: $CI_COMMIT_TAG

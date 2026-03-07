@@ -1,0 +1,17 @@
+# Minimal Supabase project config for open-brain-wizard.
+# project_id is set when you run: supabase link --project-ref YOUR_REF
+# See docs/SETUP.md for full setup.
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
