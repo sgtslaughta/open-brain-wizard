@@ -80,7 +80,7 @@ validate:version:
         echo "VERSION ($VERSION_FILE) does not match tag ($CI_COMMIT_TAG). Run ./scripts/bump-version.sh and commit before tagging."
         exit 1
       fi
-    - PKG_VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' docker/package.json | tr -d '[:space:]')"
+    - 'PKG_VER="$(sed -n \"s/.*\"version\": *\"\\([^\"]*\\)\".*\/\\1\/p\" docker/package.json | tr -d \"[:space:]\")"'
     - |
       if [ -n "$PKG_VER" ] && [ "$PKG_VER" != "$VERSION_FILE" ]; then
         echo "docker/package.json version ($PKG_VER) does not match VERSION ($VERSION_FILE). Run ./scripts/bump-version.sh."
