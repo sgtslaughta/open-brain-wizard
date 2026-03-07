@@ -39,7 +39,7 @@ docker run -d --name open-brain \
   -p 8080:8080 \
   -v "$(pwd)/open-brain-data:/data" \
   -e PUID=$(id -u) -e PGID=$(id -g) \
-  registry.gitlab.com/YOUR_GROUP/open-brain/open-brain-installer:latest
+  registry.gitlab.com/richardsoto1010/open-brain-wizard/open-brain-installer:latest
 ```
 
 > Replace `registry.gitlab.com/YOUR_GROUP/open-brain/open-brain-installer` with your actual registry path.
