@@ -19,13 +19,13 @@ Thank you Nate for the inspiration!
 - **Capture:** A Slack channel where you type a thought; it is embedded, classified, and stored in Supabase automatically; you get a confirmation reply.
 - **Retrieval:** An MCP server (hosted on Supabase) so any AI assistant can search your brain by meaning and write to it.
 
-## Services (free tier)
+## Services
 
-| Service    | Role                          |
-| ---------- | ----------------------------- |
-| Supabase   | Database and Edge Functions   |
-| OpenRouter | Embeddings and metadata (LLM) |
-| Slack      | Capture interface             |
+| Service    | Role                          | Cost             |
+| ---------- | ----------------------------- | ---------------- |
+| Supabase   | Database and Edge Functions   | Free Tier        |
+| OpenRouter | Embeddings and metadata (LLM) | ~$5 lasts months |
+| Slack      | Capture interface             | Free Tier        |
 
 ## Quick start
 
@@ -39,8 +39,10 @@ docker run -d --name open-brain \
   -p 8080:8080 \
   -v "$(pwd)/open-brain-data:/data" \
   -e PUID=$(id -u) -e PGID=$(id -g) \
-  registry.gitlab.com/richardsoto1010/open-brain-wizard:latest
+  registry.gitlab.com/YOUR_GROUP/open-brain/open-brain-installer:latest
 ```
+
+> Replace `registry.gitlab.com/YOUR_GROUP/open-brain/open-brain-installer` with your actual registry path.
 
 Open [http://localhost:8080](http://localhost:8080) and follow the wizard.
 
@@ -77,7 +79,7 @@ The container logs credential status at startup:
 
 ```
 ============================================
-  Open Brain Installer
+  open-brain Installer
 ============================================
   UID/GID: 1000:1000
   Data dir: /data
@@ -117,18 +119,34 @@ The container logs credential status at startup:
 
 ## CI/CD
 
-The `.gitlab-ci.yml` pipeline runs on every push:
+The `.gitlab-ci.yml` pipeline runs on every push. Lint and security run on all pushes; build, publish, and release run only on **version tags**.
 
-| Stage    | Job               | Description |
-| -------- | ----------------- | ----------- |
-| lint     | `lint:js`         | ESLint on server.js |
-| lint     | `lint:dockerfile` | Hadolint on Dockerfile |
-| lint     | `lint:shell`      | ShellCheck on bash scripts |
-| security | `security:trivy`  | Trivy filesystem scan for vulnerabilities |
-| security | `security:secrets`| TruffleHog secret detection |
-| build    | `build`           | Docker build and artifact |
-| publish  | `publish:latest`  | Push `latest` tag on default branch |
-| publish  | `publish:tag`     | Push version tag on git tags |
+| Stage    | Job                     | Description |
+| -------- | ----------------------- | ----------- |
+| lint     | `lint:js`               | ESLint on server.js |
+| lint     | `lint:dockerfile`       | Hadolint on Dockerfile |
+| lint     | `lint:shell`            | ShellCheck on bash scripts |
+| security | `security:trivy`       | Trivy filesystem scan for vulnerabilities |
+| security | `security:secrets`     | TruffleHog secret detection |
+| build    | `validate:version`     | Ensure tag matches `VERSION` and `docker/package.json` (tags only) |
+| build    | `build`                | Docker build on git tags only |
+| publish  | `publish`              | Push image as version tag and `latest` (tags only) |
+| release  | `prepare:release_notes`| Extract release notes from `CHANGELOG.md` (tags only) |
+| release  | `release`              | Create GitLab release with those notes (tags only) |
+
+### Version and releasing
+
+- **`VERSION`** — Single source of truth (e.g. `1.0.0`). Must match the git tag used for the release.
+- **`CHANGELOG.md`** — [Keep a Changelog](https://keepachangelog.com/) format. The section for the tagged version is used as the GitLab release description.
+- **`scripts/bump-version.sh`** — Updates `VERSION`, `docker/package.json`, and adds a new `CHANGELOG` section. Usage:
+  - `./scripts/bump-version.sh 1.1.0` — set next version explicitly.
+  - `./scripts/bump-version.sh patch|minor|major` — bump from current `VERSION`.
+- **Releasing:** After editing `CHANGELOG` (or using `bump-version.sh`), commit, then tag and push. CI builds the image, pushes `:tag` and `:latest`, and creates the GitLab release from `CHANGELOG`:
+  ```bash
+  git add VERSION docker/package.json CHANGELOG.md && git commit -m "Release 1.0.0"
+  git tag 1.0.0
+  git push origin main && git push origin 1.0.0
+  ```
 
 ## Documentation
 
