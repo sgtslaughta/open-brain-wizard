@@ -1,0 +1,12 @@
+{
+  "name": "open-brain-installer",
+  "version": "1.0.0",
+  "description": "Web installer for open-brain-wizard",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "supabase": "^2.75.0",
+    "yaml": "^2.3.4"
+  }
+}

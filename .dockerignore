@@ -1,0 +1,20 @@
+# Do not copy credentials or local env into image
+.credentials
+credentials.yaml
+.env
+.env.*
+*.local
+.git
+.gitignore
+.dockerignore
+
+# Docker installer dev deps (image builds its own)
+docker/node_modules
+
+# Docs and optional (keep scripts, supabase, sql, template)
+README.md
+TROUBLESHOOTING.md
+docs
+credentials.template
+.cursor
+.gitlab-ci.yml

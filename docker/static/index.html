@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>open-brain-wizard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --bg-elevated: #161922;
+      --surface: #1c1f2e;
+      --surface-hover: #242838;
+      --border: #2a2e3f;
+      --border-light: #353a50;
+      --text: #e2e8f0;
+      --text-secondary: #8892b0;
+      --text-muted: #5a6480;
+      --accent: #6c8cff;
+      --accent-glow: rgba(108, 140, 255, 0.15);
+      --accent-hover: #8aa4ff;
+      --success: #4ade80;
+      --success-bg: rgba(74, 222, 128, 0.1);
+      --warning: #fbbf24;
+      --warning-bg: rgba(251, 191, 36, 0.1);
+      --error: #f87171;
+      --error-bg: rgba(248, 113, 113, 0.1);
+      --terminal-bg: #0a0c10;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.25rem 2rem;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+    .header img { height: 36px; width: auto; }
+    .header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; }
+    .header-right { margin-left: auto; display: flex; gap: 0.75rem; align-items: center; }
+
+    /* Layout */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 65px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 0;
+      overflow-y: auto;
+    }
+    .sidebar-section {
+      padding: 0 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .sidebar-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Step nav */
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      position: relative;
+    }
+    .step-item:hover { background: var(--surface); color: var(--text); }
+    .step-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 500; }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      flex-shrink: 0;
+      background: var(--surface);
+      color: var(--text-muted);
+      border: 1.5px solid var(--border);
+      transition: all 0.15s;
+    }
+    .step-item.active .step-num {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .step-item.done .step-num {
+      background: var(--success-bg);
+      color: var(--success);
+      border-color: var(--success);
+    }
+    .step-item.done .step-num::after { content: "\2713"; }
+    .step-item.done .step-num span { display: none; }
+    .step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Credential pills in sidebar */
+    .cred-list { display: flex; flex-direction: column; gap: 0.35rem; }
+    .cred-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      background: var(--surface);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cred-pill:hover { background: var(--surface-hover); }
+    .cred-pill-name { color: var(--text-secondary); }
+    .cred-pill-status { font-size: 0.7rem; font-weight: 600; }
+    .cred-pill-status.set { color: var(--success); }
+    .cred-pill-status.unset { color: var(--text-muted); }
+
+    .sidebar-actions {
+      padding: 0 1rem;
+      margin-top: auto;
+    }
+    .sidebar-actions .btn { width: 100%; justify-content: center; }
+
+    /* Main content */
+    .main {
+      padding: 2rem 2.5rem;
+      max-width: 860px;
+      overflow-y: auto;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .card h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.01em;
+    }
+    .card .subtitle {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin-bottom: 1.25rem;
+    }
+    .card p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+    .card p:last-child { margin-bottom: 0; }
+
+    /* Forms */
+    .field { margin-bottom: 1rem; }
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+    .field input, .field textarea, .field select {
+      width: 100%;
+      padding: 0.6rem 0.85rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .field input::placeholder { color: var(--text-muted); }
+    .field .hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1.1rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      font-family: inherit;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--surface-hover);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--border); color: var(--text); }
+    .btn-success {
+      background: var(--success);
+      color: #0a0c10;
+    }
+    .btn-success:hover { opacity: 0.9; }
+    .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.78rem; }
+    .btn-icon { padding: 0.4rem; border-radius: 6px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-group { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+
+    /* Terminal / Log */
+    .terminal {
+      background: var(--terminal-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      max-height: 24rem;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text-secondary);
+      margin: 1rem 0;
+    }
+    .terminal:empty::before {
+      content: "Waiting for command...";
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .terminal .line-ok { color: var(--success); }
+    .terminal .line-warn { color: var(--warning); }
+    .terminal .line-err { color: var(--error); }
+    .terminal .line-info { color: var(--accent); }
+
+    /* Code blocks */
+    pre {
+      background: var(--terminal-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text);
+      position: relative;
+    }
+    code {
+      background: var(--surface-hover);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* Copy button */
+    .copy-wrap { position: relative; }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--surface);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .copy-btn:hover { background: var(--surface-hover); color: var(--text); }
+    .copy-btn.copied { background: var(--success-bg); color: var(--success); border-color: var(--success); }
+
+    /* Status badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 100px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-success { background: var(--success-bg); color: var(--success); }
+    .badge-warning { background: var(--warning-bg); color: var(--warning); }
+    .badge-muted { background: var(--surface); color: var(--text-muted); }
+
+    /* Links */
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Screenshot */
+    .screenshot {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      margin: 0.75rem 0;
+    }
+
+    /* Checkbox */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0.75rem 0;
+    }
+    .checkbox-row input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Alert/info box */
+    .info-box {
+      background: var(--accent-glow);
+      border: 1px solid rgba(108, 140, 255, 0.25);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin: 0.75rem 0;
+    }
+    .info-box strong { color: var(--text); }
+
+    /* Toast/feedback */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 500;
+      z-index: 1000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: var(--success); color: #0a0c10; }
+    .toast.error { background: var(--error); color: #fff; }
+
+    /* Modal for credential editing */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    .modal h3 { font-size: 1rem; margin-bottom: 1rem; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 1rem 0;
+      }
+      .main { padding: 1.5rem 1rem; }
+    }
+
+    /* Generated config section */
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+    .tab-btn {
+      padding: 0.6rem 1.25rem;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Troubleshooting */
+    .ts-section { margin-bottom: 1.5rem; }
+    .ts-section h3 {
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .ts-item {
+      margin-bottom: 1rem;
+      padding: 0.85rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .ts-item summary {
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.875rem;
+      color: var(--text);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .ts-item summary::before {
+      content: "\25B6";
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      transition: transform 0.15s;
+    }
+    .ts-item[open] summary::before { transform: rotate(90deg); }
+    .ts-item .ts-body {
+      margin-top: 0.65rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+    .ts-item .ts-body code {
+      background: var(--surface);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: var(--accent);
+    }
+    .ts-item .ts-body ul { margin: 0.35rem 0 0.35rem 1.25rem; }
+    .ts-item .ts-body li { margin-bottom: 0.25rem; }
+
+    .config-section { margin: 1rem 0; }
+    .config-section h3 {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.4rem;
+      font-weight: 500;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 1.25rem 0;
+    }
+
+    /* Region select styling */
+    .field select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a6480' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      padding-right: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="/static/media/ob.png" alt="open-brain-wizard" />
+    <h1>open-brain-wizard</h1>
+    <div class="header-right">
+      <button class="btn btn-secondary btn-sm" id="btnDownload">Download credentials.yaml</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Setup Steps</div>
+        <div id="stepsNav" class="step-list"></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">Credentials</div>
+        <div id="sidebarCreds" class="cred-list"></div>
+      </div>
+    </nav>
+    <main class="main" id="stepContent"></main>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Edit credential modal -->
+  <div class="modal-overlay" id="credModal">
+    <div class="modal">
+      <h3 id="modalTitle">Edit credential</h3>
+      <div class="field">
+        <label id="modalLabel">Value</label>
+        <input type="text" id="modalInput" />
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="modalSave">Save</button>
+        <button class="btn btn-secondary" id="modalCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Data ---
+    const STEPS = [
+      { id: "prereqs",   title: "Prerequisites",    statusKey: "supabase_access_token" },
+      { id: "project",   title: "Supabase Project",  statusKey: "project_ref" },
+      { id: "schema",    title: "Database Schema",    statusKey: null },
+      { id: "openrouter", title: "OpenRouter Key",    statusKey: "openrouter_api_key" },
+      { id: "slack-ch",  title: "Slack Channel",      statusKey: "slack_capture_channel" },
+      { id: "slack-app", title: "Slack App",           statusKey: "slack_bot_token" },
+      { id: "deploy",    title: "Link & Deploy",       statusKey: null },
+      { id: "events",    title: "Event Subscriptions", statusKey: null },
+      { id: "connect",   title: "Connect",             statusKey: "mcp_access_key" },
+    ];
+
+    const CRED_META = {
+      supabase_access_token: { label: "Supabase Token",   secret: true },
+      project_ref:           { label: "Project Ref",       secret: false },
+      db_password:           { label: "DB Password",       secret: true },
+      openrouter_api_key:    { label: "OpenRouter Key",    secret: true },
+      slack_bot_token:       { label: "Slack Bot Token",   secret: true },
+      slack_capture_channel: { label: "Slack Channel ID",  secret: false },
+      mcp_access_key:        { label: "MCP Access Key",    secret: true },
+    };
+    const CRED_ORDER = ["supabase_access_token", "project_ref", "db_password", "openrouter_api_key", "slack_bot_token", "slack_capture_channel", "mcp_access_key"];
+    const REGIONS = [
+      { value: "us-east-1",      label: "US East (N. Virginia)" },
+      { value: "us-west-1",      label: "US West (N. California)" },
+      { value: "us-west-2",      label: "US West (Oregon)" },
+      { value: "eu-west-1",      label: "EU West (Ireland)" },
+      { value: "eu-west-2",      label: "EU West (London)" },
+      { value: "eu-west-3",      label: "EU West (Paris)" },
+      { value: "eu-central-1",   label: "EU Central (Frankfurt)" },
+      { value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
+      { value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
+      { value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
+      { value: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
+      { value: "ap-south-1",     label: "Asia Pacific (Mumbai)" },
+      { value: "ca-central-1",   label: "Canada (Central)" },
+      { value: "sa-east-1",      label: "South America (Sao Paulo)" },
+    ];
+
+    let currentStep = 0;
+    let status = {};
+    let schemaText = "";
+    let detectedRegion = null;
+
+    // Manual completion tracking for steps without a credential statusKey
+    // In-memory only — resets on page reload so stale state doesn't carry over
+    const MANUAL_STEPS = { 2: true, 6: true, 7: true };
+    const manualDone = {};
+    function isManualStepDone(idx) {
+      return !!manualDone[idx];
+    }
+    function markManualStepDone(idx) {
+      if (MANUAL_STEPS[idx]) manualDone[idx] = true;
+    }
+
+    // --- API helpers ---
+    function api(path, opts = {}) {
+      return fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...opts.headers } }).then(r => r.json());
+    }
+
+    function saveCreds(updates) {
+      return api("/api/credentials", { method: "POST", body: JSON.stringify(updates) }).then(d => {
+        if (d.ok) showToast("Credential saved", "success");
+        else showToast(d.message || "Save failed", "error");
+        return d;
+      });
+    }
+
+    function showToast(msg, type = "success") {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = "toast " + type + " show";
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
+    }
+
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = "Copied!";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
+      });
+    }
+
+    // --- Render sidebar ---
+    async function refreshAll() {
+      status = await api("/api/credentials-status");
+      if (status.project_ref && status.supabase_access_token && !detectedRegion) {
+        api("/api/region").then(r => {
+          if (r.region) {
+            detectedRegion = r.region;
+            // Update any visible region selects
+            document.querySelectorAll(".region-select").forEach(sel => {
+              sel.value = detectedRegion;
+            });
+            document.querySelectorAll(".region-hint").forEach(el => {
+              el.textContent = "Auto-detected: " + detectedRegion + ". Override if incorrect.";
+            });
+          }
+        }).catch(() => {});
+      }
+      renderNav();
+      renderStep();
+      renderSidebarCreds();
+    }
+
+    async function refreshStatus() {
+      status = await api("/api/credentials-status");
+      renderNav();
+      renderSidebarCreds();
+    }
+
+    function renderNav() {
+      const nav = document.getElementById("stepsNav");
+      nav.innerHTML = STEPS.map((s, i) => {
+        const done = (s.statusKey && status[s.statusKey]) || isManualStepDone(i);
+        const active = i === currentStep;
+        const cls = [
+          "step-item",
+          active ? "active" : "",
+          done ? "done" : "",
+        ].filter(Boolean).join(" ");
+        return `<a href="#" class="${cls}" data-step="${i}">
+          <span class="step-num"><span>${i + 1}</span></span>
+          <span class="step-label">${s.title}</span>
+        </a>`;
+      }).join("");
+      nav.querySelectorAll("a").forEach(a =>
+        a.addEventListener("click", e => { e.preventDefault(); currentStep = +a.dataset.step; renderNav(); renderStep(); })
+      );
+    }
+
+    async function renderSidebarCreds() {
+      const el = document.getElementById("sidebarCreds");
+      const masked = await api("/api/credentials");
+      el.innerHTML = CRED_ORDER.map(key => {
+        const meta = CRED_META[key];
+        const val = masked[key];
+        const isSet = !!val;
+        return `<div class="cred-pill" data-cred="${key}" title="Click to edit">
+          <span class="cred-pill-name">${meta.label}</span>
+          <span class="cred-pill-status ${isSet ? "set" : "unset"}">${isSet ? "Set" : "---"}</span>
+        </div>`;
+      }).join("");
+      el.querySelectorAll(".cred-pill").forEach(pill => {
+        pill.addEventListener("click", () => openCredModal(pill.dataset.cred));
+      });
+    }
+
+    // --- Credential modal ---
+    function openCredModal(key) {
+      const meta = CRED_META[key];
+      document.getElementById("modalTitle").textContent = "Edit: " + meta.label;
+      document.getElementById("modalLabel").textContent = meta.label;
+      const input = document.getElementById("modalInput");
+      input.type = meta.secret ? "password" : "text";
+      input.value = "";
+      input.placeholder = "Enter new value";
+      document.getElementById("credModal").classList.add("open");
+      document.getElementById("credModal").dataset.key = key;
+      input.focus();
+    }
+    document.getElementById("modalCancel").addEventListener("click", () => {
+      document.getElementById("credModal").classList.remove("open");
+    });
+    document.getElementById("modalSave").addEventListener("click", () => {
+      const key = document.getElementById("credModal").dataset.key;
+      const val = document.getElementById("modalInput").value.trim();
+      if (!val) return;
+      saveCreds({ [key]: val }).then(() => {
+        document.getElementById("credModal").classList.remove("open");
+        refreshAll();
+      });
+    });
+    document.getElementById("modalInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("modalSave").click();
+    });
+    document.getElementById("credModal").addEventListener("click", e => {
+      if (e.target === document.getElementById("credModal")) document.getElementById("credModal").classList.remove("open");
+    });
+
+    // --- Download ---
+    document.getElementById("btnDownload").addEventListener("click", () => {
+      window.location.href = "/api/credentials/download";
+    });
+
+    // --- Terminal helper ---
+    function classifyLine(line) {
+      if (/\[OK\]|PASS|passed/.test(line)) return "line-ok";
+      if (/\[WARN\]/.test(line)) return "line-warn";
+      if (/\[FAIL\]|failed/i.test(line)) return "line-err";
+      if (/\[open-brain\]|\[test\]/.test(line)) return "line-info";
+      if (/^─|── /.test(line.replace(/\[test\]\s*/, ""))) return "line-info";
+      return "";
+    }
+
+    function appendTermLine(el, line) {
+      const span = document.createElement("span");
+      span.className = classifyLine(line);
+      span.textContent = line + "\n";
+      el.appendChild(span);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // --- Render steps ---
+    function renderStep() {
+      const el = document.getElementById("stepContent");
+      const step = currentStep;
+
+      const backBtn = step > 0 ? '<button class="btn btn-secondary" id="btnBack">Back</button>' : "";
+      const nextBtn = step < STEPS.length - 1 ? '<button class="btn btn-primary" id="btnNext">Continue</button>' : "";
+
+      if (step === 0) {
+        // Prerequisites
+        const tokenSet = status.supabase_access_token;
+        el.innerHTML = `
+          <div class="card">
+            <h2>Prerequisites</h2>
+            <p class="subtitle">Set up your Supabase access token to get started.</p>
+            <p>The installer needs a <strong>Supabase access token</strong> to link and deploy your project. Create one at
+              <a href="https://supabase.com/dashboard/account/tokens" target="_blank">supabase.com/dashboard/account/tokens</a>.</p>
+            <div class="info-box">
+              We recommend creating a <strong>short-lived token</strong> (1 hour) named "installer" for this session.
+            </div>
+            <img src="/static/media/token_name.png" alt="Generate token dialog" class="screenshot" />
+            ${tokenSet
+              ? '<div style="margin-top:1rem"><span class="badge badge-success">Token saved</span></div>'
+              : `<div class="field" style="margin-top:1rem">
+                  <label for="supabase_access_token">Supabase Access Token</label>
+                  <input type="password" id="supabase_access_token" placeholder="sbp_..." />
+                  <div class="hint">Paste your token here. It will be stored for this session.</div>
+                </div>
+                <button class="btn btn-primary" id="btnSave0">Save Token</button>`
+            }
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        document.getElementById("btnSave0")?.addEventListener("click", () => {
+          const v = document.getElementById("supabase_access_token").value.trim();
+          if (!v) return;
+          saveCreds({ supabase_access_token: v }).then(() => refreshAll());
+        });
+
+      } else if (step === 1) {
+        // Supabase Project
+        const refSet = status.project_ref;
+        el.innerHTML = `
+          <div class="card">
+            <h2>Supabase Project</h2>
+            <p class="subtitle">Create a Supabase project and enter the project reference.</p>
+            ${refSet
+              ? '<div><span class="badge badge-success">Project ref saved</span></div>'
+              : `<p>Go to <a href="https://supabase.com" target="_blank">supabase.com</a>, create a new project (choose name, password, region), then copy the <strong>project ref</strong> from the dashboard URL:</p>
+                <pre>https://supabase.com/dashboard/project/<strong>THIS_PART</strong></pre>
+                <div class="info-box">Save your <strong>database password</strong> too &mdash; you'll need it in the next step for automatic schema setup.</div>
+                <div class="field">
+                  <label for="project_ref">Project Reference</label>
+                  <input type="text" id="project_ref" placeholder="e.g. abcdefghijklmnop" />
+                </div>
+                <button class="btn btn-primary" id="btnSave1">Save</button>`
+            }
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        document.getElementById("btnSave1")?.addEventListener("click", () => {
+          const v = document.getElementById("project_ref").value.trim();
+          if (!v) return;
+          saveCreds({ project_ref: v }).then(() => refreshAll());
+        });
+
+      } else if (step === 2) {
+        // Database Schema
+        const schemaDone = isManualStepDone(2);
+        el.innerHTML = `
+          <div class="card">
+            <h2>Database Schema</h2>
+            <p class="subtitle">Apply the database schema to your Supabase project.</p>
+            ${schemaDone ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">Schema applied</span></div>' : ''}
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">A. Enable the Vector Extension</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Go to your <a href="https://supabase.com/dashboard" target="_blank">Supabase dashboard</a></li>
+              <li>Select your project</li>
+              <li>Navigate to <strong>Database &rarr; Extensions</strong></li>
+              <li>Search for <code>vector</code> and toggle it <strong>on</strong></li>
+            </ol>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">B. Apply the Schema</h3>
+            <p>Enter your database password (the one you set when creating the Supabase project) and select your project's region:</p>
+            ${status.db_password
+              ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">DB password saved</span></div>'
+              : `<div class="field">
+                  <label for="db_password">Database Password</label>
+                  <input type="password" id="db_password" placeholder="Your Supabase database password" />
+                </div>`
+            }
+            <div class="field">
+              <label for="db_region">Database Region</label>
+              <select id="db_region" class="region-select">
+                ${REGIONS.map(r => `<option value="${r.value}"${detectedRegion === r.value ? " selected" : ""}>${r.label}</option>`).join("")}
+              </select>
+              <div class="hint region-hint">${detectedRegion ? "Auto-detected: " + detectedRegion + ". Override if incorrect." : "Select the region you chose when creating your Supabase project."}</div>
+            </div>
+            <div class="btn-group" style="margin-top:0.5rem">
+              <button class="btn btn-success" id="btnApplySchema">Apply Schema Automatically</button>
+              <button class="btn btn-secondary" id="btnViewSchema">View Schema SQL</button>
+            </div>
+            <div class="terminal" id="schemaLog"></div>
+            <details style="margin-top:0.5rem">
+              <summary style="cursor:pointer;color:var(--text-secondary);font-size:0.85rem">Manual alternative: copy and run in SQL Editor</summary>
+              <div class="copy-wrap" style="margin-top:0.5rem">
+                <pre id="schemaPre">Loading...</pre>
+                <button class="copy-btn" id="btnCopySchema">Copy</button>
+              </div>
+            </details>
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        // Load schema text
+        const loadSchema = () => {
+          if (schemaText) {
+            document.getElementById("schemaPre").textContent = schemaText;
+          } else {
+            fetch("/api/schema").then(r => r.text()).then(t => {
+              schemaText = t;
+              const pre = document.getElementById("schemaPre");
+              if (pre) pre.textContent = t;
+            });
+          }
+        };
+        loadSchema();
+
+        document.getElementById("btnCopySchema")?.addEventListener("click", function() {
+          copyText(schemaText || "", this);
+        });
+
+        document.getElementById("btnViewSchema")?.addEventListener("click", () => {
+          const details = document.querySelector("details");
+          if (details) details.open = true;
+        });
+
+        document.getElementById("btnApplySchema")?.addEventListener("click", () => {
+          const pwInput = document.getElementById("db_password");
+          const pw = pwInput ? pwInput.value.trim() : "";
+          const region = document.getElementById("db_region").value;
+
+          // Save password first if provided
+          const savePromise = pw ? saveCreds({ db_password: pw }) : Promise.resolve();
+
+          savePromise.then(() => {
+            const logEl = document.getElementById("schemaLog");
+            logEl.innerHTML = "";
+            appendTermLine(logEl, "[open-brain] Starting schema application...");
+            appendTermLine(logEl, `[open-brain] Region: ${region}`);
+
+            const es = new EventSource(`/api/run-schema?region=${encodeURIComponent(region)}`);
+            es.onmessage = (e) => {
+              const d = JSON.parse(e.data);
+              if (d.done) {
+                es.close();
+                if (!d.error && d.code === 0) {
+                  markManualStepDone(2);
+                  showToast("Schema applied successfully!", "success");
+                }
+                refreshStatus();
+                return;
+              }
+              if (d.line) appendTermLine(logEl, d.line);
+            };
+            es.onerror = () => { es.close(); appendTermLine(logEl, "[error] Connection lost"); };
+          });
+        });
+
+      } else if (step === 3) {
+        // OpenRouter
+        const keySet = status.openrouter_api_key;
+        el.innerHTML = `
+          <div class="card">
+            <h2>OpenRouter API Key</h2>
+            <p class="subtitle">Required for AI-powered thought processing and embeddings.</p>
+            ${keySet
+              ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">API key saved</span></div>'
+              : ''}
+            <p>open-brain-wizard uses <a href="https://openrouter.ai" target="_blank">OpenRouter</a> to access AI models for generating embeddings and extracting metadata from your captured thoughts.</p>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Go to <a href="https://openrouter.ai" target="_blank">openrouter.ai</a> and create an account (or sign in)</li>
+              <li>Navigate to <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></li>
+              <li>Click <strong>Create Key</strong> and give it a name (e.g. <code>open-brain</code>)</li>
+              <li>Copy the generated key (starts with <code>sk-or-v1-</code>)</li>
+              <li>Go to <a href="https://openrouter.ai/credits" target="_blank">Credits</a> and add at least <strong>$5</strong> to get started</li>
+            </ol>
+            ${!keySet ? `
+              <div class="field">
+                <label for="openrouter_api_key">OpenRouter API Key</label>
+                <input type="password" id="openrouter_api_key" placeholder="sk-or-v1-..." />
+                <div class="hint">The API key you created above.</div>
+              </div>
+              <button class="btn btn-primary" id="btnSave4">Save</button>
+            ` : ''}
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        document.getElementById("btnSave4")?.addEventListener("click", () => {
+          const v = document.getElementById("openrouter_api_key").value.trim();
+          if (!v) return;
+          saveCreds({ openrouter_api_key: v }).then(() => refreshAll());
+        });
+
+      } else if (step === 4) {
+        // Slack Channel
+        const chSet = status.slack_capture_channel;
+        el.innerHTML = `
+          <div class="card">
+            <h2>Slack Capture Channel</h2>
+            <p class="subtitle">Create a private channel where open-brain-wizard will capture your messages.</p>
+            ${chSet
+              ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">Channel ID saved</span></div>'
+              : ''}
+            <p>You need a Slack workspace and a dedicated <strong>private channel</strong> for open-brain-wizard to monitor. If you don't have a workspace yet, <a href="https://slack.com/get-started#/createnew" target="_blank">create one for free</a>.</p>
+            <div class="divider"></div>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Open your Slack workspace in the desktop app or browser</li>
+              <li>Click the <strong>+</strong> button next to <strong>Channels</strong> in the sidebar</li>
+              <li>Select <strong>Create a channel</strong></li>
+              <li>Name it something like <code>capture</code> or <code>open-brain</code></li>
+              <li>Toggle <strong>Make private</strong> to on &mdash; this keeps your thoughts private</li>
+              <li>Click <strong>Create</strong> (you can skip adding members for now)</li>
+            </ol>
+            <div class="divider"></div>
+            <p><strong>Finding the Channel ID:</strong></p>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Right-click the channel name in the sidebar</li>
+              <li>Select <strong>View channel details</strong> (or click the channel name at the top)</li>
+              <li>Scroll to the bottom of the details panel</li>
+              <li>Copy the <strong>Channel ID</strong> &mdash; it starts with <code>C</code> (e.g. <code>C06ABCDEF12</code>)</li>
+            </ol>
+            ${!chSet ? `
+              <div class="field">
+                <label for="slack_capture_channel">Channel ID</label>
+                <input type="text" id="slack_capture_channel" placeholder="C0..." />
+                <div class="hint">The Channel ID from the bottom of the channel details panel.</div>
+              </div>
+              <button class="btn btn-primary" id="btnSave5">Save</button>
+            ` : ''}
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        document.getElementById("btnSave5")?.addEventListener("click", () => {
+          const v = document.getElementById("slack_capture_channel").value.trim();
+          if (!v) return;
+          saveCreds({ slack_capture_channel: v }).then(() => refreshAll());
+        });
+
+      } else if (step === 5) {
+        // Slack App
+        const tokenSet = status.slack_bot_token;
+        el.innerHTML = `
+          <div class="card">
+            <h2>Slack App</h2>
+            <p class="subtitle">Create a Slack app, install it to your workspace, and invite it to your channel.</p>
+            ${tokenSet
+              ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">Bot token saved</span></div>'
+              : ''}
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">A. Create the Slack App</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Go to <a href="https://api.slack.com/apps" target="_blank">api.slack.com/apps</a></li>
+              <li>Click <strong>Create New App</strong></li>
+              <li>Choose <strong>From scratch</strong></li>
+              <li>Name it (e.g. <code>open-brain-wizard</code>) and select your workspace</li>
+              <li>Click <strong>Create App</strong></li>
+            </ol>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">B. Set Bot Permissions</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>In the app settings sidebar, click <strong>OAuth & Permissions</strong></li>
+              <li>Scroll down to <strong>Scopes &rarr; Bot Token Scopes</strong></li>
+              <li>Click <strong>Add an OAuth Scope</strong> and add each of these:</li>
+            </ol>
+            <ul style="margin:0 0 0.75rem 2.5rem;color:var(--text-secondary);font-size:0.9rem">
+              <li><code>channels:history</code> &mdash; read messages in public channels</li>
+              <li><code>groups:history</code> &mdash; read messages in private channels</li>
+              <li><code>chat:write</code> &mdash; send confirmation replies</li>
+            </ul>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">C. Install the App to Your Workspace</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Scroll back up on the <strong>OAuth & Permissions</strong> page</li>
+              <li>Click <strong>Install to Workspace</strong></li>
+              <li>Review the permissions and click <strong>Allow</strong></li>
+              <li>Copy the <strong>Bot User OAuth Token</strong> that appears (starts with <code>xoxb-</code>)</li>
+            </ol>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">D. Invite the Bot to Your Capture Channel</h3>
+            <div class="info-box">
+              This step is required &mdash; the bot can only read messages in channels it has been explicitly added to.
+            </div>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Open your capture channel in Slack (the one you created in the previous step)</li>
+              <li>Type <code>/invite @open-brain-wizard</code> (use whatever name you gave your app)</li>
+              <li>Press Enter &mdash; you should see a confirmation that the app was added</li>
+            </ol>
+            <div class="info-box">
+              <strong>Alternative:</strong> You can also click the channel name at the top &rarr; <strong>Integrations</strong> tab &rarr; <strong>Add an App</strong> &rarr; find your app and add it.
+            </div>
+
+            ${!tokenSet ? `
+              <div class="divider"></div>
+              <div class="field">
+                <label for="slack_bot_token">Bot User OAuth Token</label>
+                <input type="password" id="slack_bot_token" placeholder="xoxb-..." />
+                <div class="hint">From step C above &mdash; the token shown after installing the app.</div>
+              </div>
+              <button class="btn btn-primary" id="btnSave6">Save</button>
+            ` : ''}
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        document.getElementById("btnSave6")?.addEventListener("click", () => {
+          const v = document.getElementById("slack_bot_token").value.trim();
+          if (!v) return;
+          saveCreds({ slack_bot_token: v }).then(() => refreshAll());
+        });
+
+      } else if (step === 6) {
+        // Link & Deploy
+        const deployDone = isManualStepDone(6);
+        el.innerHTML = `
+          <div class="card">
+            <h2>Link & Deploy</h2>
+            <p class="subtitle">Link your project, set secrets, and deploy Edge Functions.</p>
+            ${deployDone ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">Deployment complete</span></div>' : ''}
+            <div class="info-box">
+              <strong>Prerequisites:</strong> Make sure you've completed all previous steps &mdash; project ref, API keys, and Slack credentials all need to be saved before deploying.
+            </div>
+            <p>This will run three steps automatically:</p>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li><strong>Link</strong> &mdash; connects the Supabase CLI to your project using your access token</li>
+              <li><strong>Set Secrets</strong> &mdash; uploads your OpenRouter key, Slack token, channel ID, and MCP key as encrypted Supabase secrets</li>
+              <li><strong>Deploy</strong> &mdash; deploys the <code>ingest-thought</code> and <code>open-brain-mcp</code> Edge Functions</li>
+            </ol>
+            <p>Watch the terminal output below to see exactly what's happening at each stage.</p>
+            <div class="btn-group" style="margin-top:0">
+              <button class="btn btn-success" id="btnRunFull">Run All Steps</button>
+              <button class="btn btn-secondary" id="btnRunLink">Link Only</button>
+              <button class="btn btn-secondary" id="btnRunSecrets">Secrets Only</button>
+              <button class="btn btn-secondary" id="btnRunDeploy">Deploy Only</button>
+            </div>
+            <div class="terminal" id="runLog"></div>
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        const runStep = (stepName) => {
+          const logEl = document.getElementById("runLog");
+          logEl.innerHTML = "";
+          const es = new EventSource("/api/run-step?step=" + stepName);
+          es.onmessage = (e) => {
+            const d = JSON.parse(e.data);
+            if (d.done) {
+              es.close();
+              if (!d.error) { markManualStepDone(6); showToast("Deployment complete!", "success"); }
+              refreshStatus();
+              return;
+            }
+            if (d.line) appendTermLine(logEl, d.line);
+          };
+          es.onerror = () => { es.close(); appendTermLine(logEl, "[error] Connection lost"); };
+        };
+        document.getElementById("btnRunFull").addEventListener("click", () => runStep("full"));
+        document.getElementById("btnRunLink").addEventListener("click", () => runStep("link"));
+        document.getElementById("btnRunSecrets").addEventListener("click", () => runStep("set-secrets"));
+        document.getElementById("btnRunDeploy").addEventListener("click", () => runStep("deploy"));
+
+      } else if (step === 7) {
+        // Event Subscriptions
+        el.innerHTML = `
+          <div class="card">
+            <h2>Slack Event Subscriptions</h2>
+            <p class="subtitle">Connect Slack events to your deployed Edge Function so messages are captured.</p>
+
+            <div class="info-box">
+              <strong>Prerequisite:</strong> You must complete the <strong>Link & Deploy</strong> step first. Slack will verify the URL is live when you enter it.
+            </div>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">A. Copy Your Request URL</h3>
+            <p>This is the URL Slack will send events to. Copy it now &mdash; you'll need it in the next step.</p>
+            <div class="config-section">
+              <div class="copy-wrap">
+                <pre id="ingestUrl">Loading...</pre>
+                <button class="copy-btn" id="btnCopyIngest">Copy</button>
+              </div>
+            </div>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">B. Enable Event Subscriptions</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Go to <a href="https://api.slack.com/apps" target="_blank">api.slack.com/apps</a> and select your app</li>
+              <li>In the sidebar, click <strong>Event Subscriptions</strong></li>
+              <li>Toggle <strong>Enable Events</strong> to <strong>On</strong></li>
+              <li>In the <strong>Request URL</strong> field, paste the URL you copied above</li>
+              <li>Wait for the green <strong>Verified</strong> checkmark &mdash; Slack sends a test challenge to confirm the URL is reachable</li>
+            </ol>
+            <div class="info-box">
+              <strong>Troubleshooting:</strong> If verification fails, make sure you completed the Deploy step and that the function is live. You can re-deploy from the previous step if needed.
+            </div>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">C. Subscribe to Bot Events</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>On the same page, scroll down to <strong>Subscribe to bot events</strong></li>
+              <li>Click <strong>Add Bot User Event</strong></li>
+              <li>Add <code>message.channels</code> &mdash; listens for messages in public channels</li>
+              <li>Click <strong>Add Bot User Event</strong> again</li>
+              <li>Add <code>message.groups</code> &mdash; listens for messages in private channels</li>
+            </ol>
+
+            <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">D. Save Changes</h3>
+            <ol style="margin:0.5rem 0 1rem 1.5rem;color:var(--text-secondary);font-size:0.9rem;line-height:2">
+              <li>Click <strong>Save Changes</strong> at the bottom of the page</li>
+              <li>If prompted, click <strong>Reinstall your app</strong> to apply the new event permissions</li>
+              <li>Click <strong>Allow</strong> to confirm</li>
+            </ol>
+            <div class="info-box">
+              After saving, any message posted in your capture channel will be sent to open-brain-wizard for processing. Try sending a test message!
+            </div>
+
+            <div class="btn-group">${backBtn} ${nextBtn}</div>
+          </div>
+        `;
+        api("/api/generated").then(g => {
+          const el = document.getElementById("ingestUrl");
+          if (el && g.ingest_thought_url) el.textContent = g.ingest_thought_url;
+          else if (el) el.textContent = "(Deploy first to generate this URL)";
+        });
+        document.getElementById("btnCopyIngest")?.addEventListener("click", function() {
+          const url = document.getElementById("ingestUrl")?.textContent;
+          if (url && !url.startsWith("(")) copyText(url, this);
+        });
+
+      } else if (step === 8) {
+        // Connect / Generated config + Validation + Troubleshooting
+        el.innerHTML = `
+          <div class="card">
+            <h2>Connect</h2>
+            <p class="subtitle">Validate your deployment, get your MCP configuration, or troubleshoot issues.</p>
+
+            <div class="tab-bar">
+              <button class="tab-btn active" data-tab="tab-validate">Validate</button>
+              <button class="tab-btn" data-tab="tab-config">Configuration</button>
+              <button class="tab-btn" data-tab="tab-troubleshoot">Troubleshooting</button>
+            </div>
+
+            <div class="tab-pane active" id="tab-validate">
+              <p>Verify that your database, Edge Functions, and MCP endpoint are all working correctly.</p>
+              <div class="field">
+                <label for="test_region">Database Region (for DB test)</label>
+                <select id="test_region" class="region-select">
+                  ${REGIONS.map(r => `<option value="${r.value}"${detectedRegion === r.value ? " selected" : ""}>${r.label}</option>`).join("")}
+                </select>
+                <div class="hint region-hint">${detectedRegion ? "Auto-detected: " + detectedRegion + ". Override if incorrect." : "Select the region you chose when creating your Supabase project."}</div>
+              </div>
+              <button class="btn btn-success" id="btnRunTest">Run Validation Tests</button>
+              <div class="terminal" id="testLog"></div>
+            </div>
+
+            <div class="tab-pane" id="tab-config">
+              <div id="generatedContent"><p style="color:var(--text-muted)">Loading configuration...</p></div>
+            </div>
+
+            <div class="tab-pane" id="tab-troubleshoot">
+              <div class="ts-section">
+                <h3>Setup &amp; CLI</h3>
+
+                <details class="ts-item">
+                  <summary><code>supabase link</code> hangs or times out</summary>
+                  <div class="ts-body">
+                    <p>The Supabase CLI can hang if it cannot complete the auth flow. Fix by using an access token:</p>
+                    <ol>
+                      <li>Create a token at <strong>supabase.com/dashboard/account/tokens</strong></li>
+                      <li>Enter it in the sidebar under <strong>Supabase Token</strong></li>
+                      <li>Re-run <strong>Link &amp; Deploy</strong> from step 7</li>
+                    </ol>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Edge Function deploy fails</summary>
+                  <div class="ts-body">
+                    <p>Common causes:</p>
+                    <ul>
+                      <li><strong>Invalid access token</strong> &mdash; generate a new token from the Supabase dashboard and update it in the sidebar</li>
+                      <li><strong>Project not linked</strong> &mdash; go back to step 7 and run Link &amp; Deploy</li>
+                      <li><strong>CLI version</strong> &mdash; ensure you have <code>supabase</code> v1.100+ installed</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Database schema fails to apply</summary>
+                  <div class="ts-body">
+                    <ul>
+                      <li><strong>Wrong region</strong> &mdash; the connection string includes a region. If you pick the wrong one, <code>psql</code> will time out. Check your project region in the Supabase dashboard under <strong>Settings &rarr; General</strong>.</li>
+                      <li><strong>Wrong password</strong> &mdash; this is the database password set when the Supabase project was created (not the access token). You can reset it under <strong>Settings &rarr; Database</strong>.</li>
+                      <li><strong>pgvector not enabled</strong> &mdash; go to <strong>Database &rarr; Extensions</strong> in the dashboard and enable <code>vector</code> before applying the schema.</li>
+                    </ul>
+                  </div>
+                </details>
+              </div>
+
+              <div class="ts-section">
+                <h3>Capture (Slack &rarr; Supabase)</h3>
+
+                <details class="ts-item">
+                  <summary>Slack says "Request URL not verified"</summary>
+                  <div class="ts-body">
+                    <p>The <code>ingest-thought</code> Edge Function is not deployed or not reachable.</p>
+                    <ul>
+                      <li>Go back to step 7 and re-run <strong>Link &amp; Deploy</strong></li>
+                      <li>Copy the <code>ingest-thought</code> URL from the <strong>Configuration</strong> tab and paste it in Slack Event Subscriptions</li>
+                      <li>Make sure the URL ends with <code>/ingest-thought</code> (no trailing slash)</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Messages are not triggering the function</summary>
+                  <div class="ts-body">
+                    <ul>
+                      <li><strong>Event Subscriptions:</strong> In your Slack app, enable both <code>message.channels</code> and <code>message.groups</code>. Public channels use the first; private channels use the second.</li>
+                      <li><strong>Bot not in channel:</strong> If your capture channel is private, invite the bot: type <code>/invite @YourAppName</code> in the channel. Without this, the bot never sees messages and you get no errors.</li>
+                      <li><strong>Wrong Channel ID:</strong> Confirm <code>SLACK_CAPTURE_CHANNEL</code> matches the actual channel ID. Right-click the channel &rarr; View channel details &rarr; copy the ID at the bottom.</li>
+                      <li><strong>Check function logs:</strong> Open your Supabase dashboard &rarr; Edge Functions &rarr; <code>ingest-thought</code> &rarr; Logs / Invocations to see if Slack is hitting the function at all.</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Slack creates duplicate database entries</summary>
+                  <div class="ts-body">
+                    <p>Slack retries webhook delivery if the response takes longer than ~3 seconds. Embedding + metadata extraction can take 4&ndash;5 seconds, so Slack may send the event twice.</p>
+                    <p>The content is identical; search is unaffected. You can delete duplicates in the Supabase Table Editor if desired.</p>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Function runs but nothing in the database</summary>
+                  <div class="ts-body">
+                    <p>Check Edge Function logs in the dashboard. Common causes:</p>
+                    <ul>
+                      <li><strong>OpenRouter API key</strong> is invalid or has no credits &mdash; verify at <strong>openrouter.ai/keys</strong></li>
+                      <li><strong>Secrets not deployed</strong> &mdash; re-run step 7 (Link &amp; Deploy) to push secrets to Supabase</li>
+                      <li><strong>Embedding model unavailable</strong> &mdash; OpenRouter occasionally has outages for specific models. Check OpenRouter status or try again later.</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>No confirmation reply in Slack</summary>
+                  <div class="ts-body">
+                    <ul>
+                      <li>The <code>SLACK_BOT_TOKEN</code> may be wrong &mdash; update it in the sidebar and re-deploy</li>
+                      <li>The <code>chat:write</code> scope may be missing &mdash; add it in OAuth &amp; Permissions, then reinstall the app to the workspace</li>
+                    </ul>
+                  </div>
+                </details>
+              </div>
+
+              <div class="ts-section">
+                <h3>Retrieval (MCP)</h3>
+
+                <details class="ts-item">
+                  <summary>Getting 401 errors from MCP endpoint</summary>
+                  <div class="ts-body">
+                    <p>The access key in the URL does not match the value in Supabase secrets.</p>
+                    <ul>
+                      <li>Check that the <code>?key=</code> value in your MCP URL matches <code>MCP_ACCESS_KEY</code> in the sidebar</li>
+                      <li>If using a header (e.g. Claude Code or mcp-remote), the header must be <code>x-brain-key</code> (lowercase, with the hyphen)</li>
+                      <li>Re-run <strong>Link &amp; Deploy</strong> to ensure the latest key is pushed to Supabase</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>OpenRouter embeddings failed (401 / 403)</summary>
+                  <div class="ts-body">
+                    <p>The <code>capture_thought</code> and <code>search_thoughts</code> tools require a valid OpenRouter API key for embeddings.</p>
+                    <ul>
+                      <li><strong>401 "User not found"</strong> &mdash; the API key is invalid or revoked. Generate a new one at <strong>openrouter.ai/keys</strong></li>
+                      <li><strong>403 / insufficient credits</strong> &mdash; add credits to your OpenRouter account</li>
+                      <li>After updating the key in the sidebar, re-run <strong>Link &amp; Deploy</strong> to push the new secret</li>
+                      <li><code>list_thoughts</code> and <code>thought_stats</code> do not use embeddings and will work regardless</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Claude Desktop tools do not appear</summary>
+                  <div class="ts-body">
+                    <p>Add the connector in <strong>Settings &rarr; Connectors</strong> (not by editing a JSON config). Ensure the connector is enabled for the current conversation:</p>
+                    <ul>
+                      <li>Click "+" &rarr; Connectors &rarr; open-brain-wizard &rarr; enable</li>
+                      <li>If it still does not show, remove and re-add the connector with the same URL</li>
+                      <li>Restart Claude Desktop if the connector was just added</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>ChatGPT does not use open-brain tools</summary>
+                  <div class="ts-body">
+                    <ul>
+                      <li>Turn on <strong>Developer Mode</strong>: Settings &rarr; Apps &amp; Connectors &rarr; Advanced settings</li>
+                      <li>Ensure the connector is active for the conversation</li>
+                      <li>You can prompt explicitly: <em>"Use the open-brain search_thoughts tool to search for [topic]"</em></li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Search returns no results</summary>
+                  <div class="ts-body">
+                    <ul>
+                      <li>Make sure you have captured some thoughts first (via Slack or <code>capture_thought</code>)</li>
+                      <li>Try a lower similarity threshold (e.g. <em>"search with threshold 0.3"</em>)</li>
+                      <li>Check the <code>open-brain-mcp</code> Edge Function logs in the Supabase dashboard</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Tools work but responses are slow</summary>
+                  <div class="ts-body">
+                    <p>The first request to a cold Edge Function can take a few seconds. Later calls are faster.</p>
+                    <ul>
+                      <li>If always slow, check that your Supabase project region is close to you</li>
+                      <li>The validation test warms up the functions &mdash; try running it before using the tools</li>
+                    </ul>
+                  </div>
+                </details>
+              </div>
+
+              <div class="ts-section">
+                <h3>General</h3>
+
+                <details class="ts-item">
+                  <summary>Metadata extraction seems off</summary>
+                  <div class="ts-body">
+                    <p>Metadata (type, topics, people, action items) is best-effort from the LLM. Semantic search uses the embedding vector, so retrieval works correctly even when metadata classification is imperfect.</p>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Credentials updated in sidebar but not taking effect</summary>
+                  <div class="ts-body">
+                    <p>Updating credentials in the sidebar saves them for the current session, but does <strong>not</strong> automatically push them to Supabase.</p>
+                    <ul>
+                      <li>After changing any secret (OpenRouter key, Slack token, MCP key, etc.), re-run <strong>Link &amp; Deploy</strong> from step 7 to push updated secrets</li>
+                      <li>The validation test on this page uses the latest sidebar values, so you can verify correctness before deploying</li>
+                    </ul>
+                  </div>
+                </details>
+
+                <details class="ts-item">
+                  <summary>Still stuck?</summary>
+                  <div class="ts-body">
+                    <p>Use the <strong>Supabase AI assistant</strong> (chat icon in the bottom-right of your project dashboard). Paste the error and the step you are on &mdash; it can help with Supabase-specific problems.</p>
+                    <p>You can also check the Edge Function logs: <strong>Supabase Dashboard &rarr; Edge Functions &rarr; select function &rarr; Logs</strong>.</p>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <div class="btn-group">${backBtn}</div>
+          </div>
+        `;
+
+        // Tab switching
+        document.querySelectorAll(".tab-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(btn.dataset.tab)?.classList.add("active");
+          });
+        });
+
+        // Validation test
+        document.getElementById("btnRunTest").addEventListener("click", () => {
+          const logEl = document.getElementById("testLog");
+          logEl.innerHTML = "";
+          const region = document.getElementById("test_region").value;
+          const es = new EventSource("/api/run-test?region=" + encodeURIComponent(region));
+          es.onmessage = (e) => {
+            const d = JSON.parse(e.data);
+            if (d.done) {
+              es.close();
+              if (d.results) {
+                const pass = Object.values(d.results).filter(v => v === true).length;
+                const fail = Object.values(d.results).filter(v => v === false).length;
+                if (fail === 0 && pass > 0) showToast("All tests passed!", "success");
+                else if (fail > 0) showToast(fail + " test(s) failed", "error");
+              }
+              return;
+            }
+            if (d.line) appendTermLine(logEl, d.line);
+          };
+          es.onerror = () => { es.close(); appendTermLine(logEl, "[error] Connection lost"); };
+        });
+
+        // Generated config
+        api("/api/generated").then(g => {
+          const div = document.getElementById("generatedContent");
+          if (!g.mcp_connection_url) {
+            div.innerHTML = `<div class="info-box">Complete the <strong>Link & Deploy</strong> step and ensure <strong>project_ref</strong> and <strong>mcp_access_key</strong> are set.</div>`;
+            return;
+          }
+          div.innerHTML = `
+            <div class="config-section">
+              <h3>MCP Connection URL</h3>
+              <div class="copy-wrap">
+                <pre>${escapeHtml(g.mcp_connection_url)}</pre>
+                <button class="copy-btn" id="btnCopyMcp">Copy</button>
+              </div>
+            </div>
+            <div class="config-section">
+              <h3>Ingest-thought URL (for Slack Event Subscriptions)</h3>
+              <div class="copy-wrap">
+                <pre>${escapeHtml(g.ingest_thought_url)}</pre>
+                <button class="copy-btn" id="btnCopyIngestFinal">Copy</button>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="config-section">
+              <h3>Claude Desktop Config</h3>
+              <div class="copy-wrap">
+                <pre>${escapeHtml(g.mcp_config_claude)}</pre>
+                <button class="copy-btn" id="btnCopyClaude">Copy</button>
+              </div>
+            </div>
+            <div class="config-section">
+              <h3>Cursor MCP Config</h3>
+              <div class="copy-wrap">
+                <pre>${escapeHtml(g.mcp_config_cursor)}</pre>
+                <button class="copy-btn" id="btnCopyCursor">Copy</button>
+              </div>
+            </div>
+          `;
+          document.getElementById("btnCopyMcp")?.addEventListener("click", function() { copyText(g.mcp_connection_url, this); });
+          document.getElementById("btnCopyIngestFinal")?.addEventListener("click", function() { copyText(g.ingest_thought_url, this); });
+          document.getElementById("btnCopyClaude")?.addEventListener("click", function() { copyText(g.mcp_config_claude, this); });
+          document.getElementById("btnCopyCursor")?.addEventListener("click", function() { copyText(g.mcp_config_cursor, this); });
+        });
+      }
+
+      // Wire nav buttons
+      document.getElementById("btnBack")?.addEventListener("click", () => { currentStep--; renderNav(); renderStep(); });
+      document.getElementById("btnNext")?.addEventListener("click", () => { markManualStepDone(currentStep); currentStep++; renderNav(); renderStep(); });
+    }
+
+    function escapeHtml(s) {
+      if (!s) return "";
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // --- Init ---
+    refreshAll();
+  </script>
+</body>
+</html>

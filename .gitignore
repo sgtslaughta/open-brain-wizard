@@ -1,0 +1,21 @@
+# Open Brain - never commit credentials or local env
+.credentials
+credentials.yaml
+.env
+.env.*
+*.local
+.env.*.local
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Supabase link and local
+.supabase/
+supabase/.supabase/
+
+# Docker installer (local dev)
+docker/node_modules/
