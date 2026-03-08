@@ -1,4 +1,4 @@
-# Open Brain - never commit credentials or local env
+# open-brain-wizard - never commit credentials or local env
 .credentials
 credentials.yaml
 .env

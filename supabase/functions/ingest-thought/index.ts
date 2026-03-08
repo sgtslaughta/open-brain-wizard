@@ -1,28 +1,22 @@
 /**
- * Open Brain ingest-thought Edge Function.
+ * open-brain-wizard ingest-thought Edge Function.
  * Receives Slack events, generates embedding and metadata, stores in Supabase.
  */
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
+const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
+const SLACK_CAPTURE_CHANNEL = Deno.env.get("SLACK_CAPTURE_CHANNEL")!;
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
-
-// Lazy-init so url_verification works even if env vars aren't set yet
-let _supabase: SupabaseClient | null = null;
-function getSupabase(): SupabaseClient {
-  if (!_supabase) {
-    _supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
-  }
-  return _supabase;
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function getEmbedding(text: string): Promise<number[]> {
-  const apiKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
   const r = await fetch(`${OPENROUTER_BASE}/embeddings`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text }),
   });
   const d = await r.json();
@@ -30,10 +24,9 @@ async function getEmbedding(text: string): Promise<number[]> {
 }
 
 async function extractMetadata(text: string): Promise<Record<string, unknown>> {
-  const apiKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
   const r = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "openai/gpt-4o-mini",
       response_format: { type: "json_object" },
@@ -55,42 +48,29 @@ Only extract what's explicitly there.` },
 }
 
 async function replyInSlack(channel: string, threadTs: string, text: string): Promise<void> {
-  const token = Deno.env.get("SLACK_BOT_TOKEN") ?? "";
   await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: { "Authorization": `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ channel, thread_ts: threadTs, text }),
   });
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  // Handle url_verification as fast as possible - Slack has a 3s timeout
-  let body: Record<string, unknown>;
   try {
-    body = await req.json();
-  } catch {
-    return new Response("invalid json", { status: 400 });
-  }
-
-  if (body.type === "url_verification") {
-    return new Response(
-      JSON.stringify({ challenge: body.challenge }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  // Acknowledge Slack immediately for event callbacks, process async
-  // Slack retries if it doesn't get a 200 within 3s
-  try {
-    const event = body.event as Record<string, string> | undefined;
-    const captureChannel = Deno.env.get("SLACK_CAPTURE_CHANNEL") ?? "";
+    const body = await req.json();
+    if (body.type === "url_verification") {
+      return new Response(JSON.stringify({ challenge: body.challenge }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const event = body.event;
     if (!event || event.type !== "message" || event.subtype || event.bot_id
-        || event.channel !== captureChannel) {
+        || event.channel !== SLACK_CAPTURE_CHANNEL) {
       return new Response("ok", { status: 200 });
     }
-    const messageText = event.text;
-    const channel = event.channel;
-    const messageTs = event.ts;
+    const messageText: string = event.text;
+    const channel: string = event.channel;
+    const messageTs: string = event.ts;
     if (!messageText || messageText.trim() === "") return new Response("ok", { status: 200 });
 
     const [embedding, metadata] = await Promise.all([
@@ -98,7 +78,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       extractMetadata(messageText),
     ]);
 
-    const supabase = getSupabase();
     const { error } = await supabase.from("thoughts").insert({
       content: messageText,
       embedding,
