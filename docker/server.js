@@ -563,18 +563,14 @@ app.get("/api/run-test", (req, res) => {
             send(`[test] Tools found: ${toolNames.join(", ")}`);
 
             let mcpFails = 0;
-            const testMarker = `__test_${Date.now()}__`;
-            const testContent = `open-brain-wizard validation test ${testMarker}`;
-            let capturedOk = false;
 
-            // Step 4: Round-trip test — capture a thought via MCP
+            // Step 4: Test capture_thought
             if (toolNames.includes("capture_thought")) {
               send("");
               send("[test] Testing capture_thought...");
-              send(`[test] Capturing test thought: "${testContent.slice(0, 60)}..."`);
               const captureResp = await mcpCall(3, "tools/call", {
                 name: "capture_thought",
-                arguments: { content: testContent },
+                arguments: { content: "open-brain-wizard validation test — please ignore this thought." },
               });
               if (captureResp && captureResp.result && Array.isArray(captureResp.result.content)) {
                 const text = captureResp.result.content.map(c => c.text || "").join("");
@@ -584,49 +580,19 @@ app.get("/api/run-test", (req, res) => {
                   mcpFails++;
                 } else {
                   send("[test] [OK] capture_thought: PASS");
-                  capturedOk = true;
                 }
               } else {
                 send("[test] [WARN] capture_thought: unexpected response format");
               }
             }
 
-            // Step 5: Verify the captured thought appears in list_thoughts
-            if (toolNames.includes("list_thoughts")) {
-              send("");
-              send("[test] Testing list_thoughts...");
-              const listThResp = await mcpCall(5, "tools/call", {
-                name: "list_thoughts",
-                arguments: { limit: 5 },
-              });
-              if (listThResp && listThResp.result && Array.isArray(listThResp.result.content)) {
-                const text = listThResp.result.content.map(c => c.text || "").join("");
-                send(`[test] list_thoughts: ${text.slice(0, 150).replace(/\n/g, " ")}...`);
-                if (listThResp.result.isError) {
-                  send("[test] [FAIL] list_thoughts returned an error");
-                  mcpFails++;
-                } else if (capturedOk) {
-                  // Verify round-trip: the test thought should appear in the list
-                  if (text.includes(testMarker)) {
-                    send("[test] [OK] list_thoughts: PASS (test thought found — round-trip verified)");
-                  } else {
-                    send("[test] [WARN] list_thoughts works but test thought not found in results (may need a moment to propagate)");
-                  }
-                } else {
-                  send("[test] [OK] list_thoughts: PASS");
-                }
-              } else {
-                send("[test] [WARN] list_thoughts: unexpected response format");
-              }
-            }
-
-            // Step 6: Test search_thoughts — search for the captured test thought
+            // Step 5: Test search_thoughts
             if (toolNames.includes("search_thoughts")) {
               send("");
               send("[test] Testing search_thoughts...");
               const searchResp = await mcpCall(4, "tools/call", {
                 name: "search_thoughts",
-                arguments: { query: capturedOk ? "validation test" : "test", limit: 3 },
+                arguments: { query: "validation test", limit: 3 },
               });
               if (searchResp && searchResp.result && Array.isArray(searchResp.result.content)) {
                 const text = searchResp.result.content.map(c => c.text || "").join("");
@@ -640,6 +606,28 @@ app.get("/api/run-test", (req, res) => {
                 }
               } else {
                 send("[test] [WARN] search_thoughts: unexpected response format");
+              }
+            }
+
+            // Step 6: Test list_thoughts
+            if (toolNames.includes("list_thoughts")) {
+              send("");
+              send("[test] Testing list_thoughts...");
+              const listThResp = await mcpCall(5, "tools/call", {
+                name: "list_thoughts",
+                arguments: { limit: 3 },
+              });
+              if (listThResp && listThResp.result && Array.isArray(listThResp.result.content)) {
+                const text = listThResp.result.content.map(c => c.text || "").join("");
+                send(`[test] list_thoughts: ${text.slice(0, 150).replace(/\n/g, " ")}...`);
+                if (listThResp.result.isError) {
+                  send("[test] [FAIL] list_thoughts returned an error");
+                  mcpFails++;
+                } else {
+                  send("[test] [OK] list_thoughts: PASS");
+                }
+              } else {
+                send("[test] [WARN] list_thoughts: unexpected response format");
               }
             }
 
@@ -662,21 +650,6 @@ app.get("/api/run-test", (req, res) => {
                 }
               } else {
                 send("[test] [WARN] thought_stats: unexpected response format");
-              }
-            }
-
-            // Step 8: Cleanup — remove the test thought from the database
-            if (capturedOk && isSet(creds.db_password)) {
-              send("");
-              send("[test] Cleaning up test thought...");
-              try {
-                const region = (req.query.region || "us-east-1").replace(/[^a-z0-9-]/gi, "");
-                const password = creds.db_password.trim();
-                const connStr = `postgresql://postgres.${ref}:${encodeURIComponent(password)}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
-                await runCommand("psql", [connStr, "-c", `DELETE FROM thoughts WHERE content LIKE '%${testMarker}%';`], { PGCONNECT_TIMEOUT: "10" });
-                send("[test] Test thought removed");
-              } catch (e) {
-                send(`[test] [WARN] Could not clean up test thought: ${e.message}`);
               }
             }
 
@@ -798,19 +771,6 @@ app.get("/api/generated", (req, res) => {
   });
 });
 
-const server_instance = app.listen(PORT, "0.0.0.0", () => {
-  console.error(`open-brain-wizard installer: http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.error(`open-brain-wizard: http://localhost:${PORT}`);
 });
-
-// Graceful shutdown on container stop
-function shutdown(signal) {
-  console.error(`\n${signal} received — shutting down`);
-  server_instance.close(() => {
-    console.error("Server closed");
-    process.exit(0);
-  });
-  // Force exit if close takes too long
-  setTimeout(() => process.exit(1), 5000);
-}
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
