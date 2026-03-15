@@ -42,8 +42,7 @@ fi
 
 CRED_PATH="$ROOT_DIR/credentials.yaml"
 if [ ! -f "$CRED_PATH" ]; then
-  fail "credentials.yaml not found. Copy credentials.yaml.template to credentials.yaml and fill in."
-  echo "  Path: $CRED_PATH"
+  fail "credentials.yaml not found at $CRED_PATH. Copy credentials.yaml.template to credentials.yaml and fill in."
 fi
 
 section "open-brain-wizard: Set secrets from credentials.yaml"

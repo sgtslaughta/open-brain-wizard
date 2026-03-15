@@ -15,7 +15,7 @@ PACKAGE_JSON="$ROOT_DIR/docker/package.json"
 CHANGELOG="$ROOT_DIR/CHANGELOG.md"
 
 # Read current version (strip whitespace)
-current() { cat "$VERSION_FILE" | tr -d '[:space:]'; }
+current() { tr -d '[:space:]' < "$VERSION_FILE"; }
 
 # Parse semver and bump
 bump_patch() {

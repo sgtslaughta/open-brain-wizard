@@ -579,30 +579,12 @@
     const CRED_META = {
       supabase_access_token: { label: "Supabase Token",   secret: true },
       project_ref:           { label: "Project Ref",       secret: false },
-      db_password:           { label: "DB Password",       secret: true },
       openrouter_api_key:    { label: "OpenRouter Key",    secret: true },
       slack_bot_token:       { label: "Slack Bot Token",   secret: true },
       slack_capture_channel: { label: "Slack Channel ID",  secret: false },
       mcp_access_key:        { label: "MCP Access Key",    secret: true },
     };
-    const CRED_ORDER = ["supabase_access_token", "project_ref", "db_password", "openrouter_api_key", "slack_bot_token", "slack_capture_channel", "mcp_access_key"];
-    const REGIONS = [
-      { value: "us-east-1",      label: "US East (N. Virginia)" },
-      { value: "us-west-1",      label: "US West (N. California)" },
-      { value: "us-west-2",      label: "US West (Oregon)" },
-      { value: "eu-west-1",      label: "EU West (Ireland)" },
-      { value: "eu-west-2",      label: "EU West (London)" },
-      { value: "eu-west-3",      label: "EU West (Paris)" },
-      { value: "eu-central-1",   label: "EU Central (Frankfurt)" },
-      { value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
-      { value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
-      { value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
-      { value: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
-      { value: "ap-south-1",     label: "Asia Pacific (Mumbai)" },
-      { value: "ca-central-1",   label: "Canada (Central)" },
-      { value: "sa-east-1",      label: "South America (Sao Paulo)" },
-    ];
-
+    const CRED_ORDER = ["supabase_access_token", "project_ref", "openrouter_api_key", "slack_bot_token", "slack_capture_channel", "mcp_access_key"];
     let currentStep = 0;
     let status = {};
     let schemaText = "";
@@ -655,13 +637,6 @@
         api("/api/region").then(r => {
           if (r.region) {
             detectedRegion = r.region;
-            // Update any visible region selects
-            document.querySelectorAll(".region-select").forEach(sel => {
-              sel.value = detectedRegion;
-            });
-            document.querySelectorAll(".region-hint").forEach(el => {
-              el.textContent = "Auto-detected: " + detectedRegion + ". Override if incorrect.";
-            });
           }
         }).catch(() => {});
       }
@@ -818,7 +793,6 @@
               ? '<div><span class="badge badge-success">Project ref saved</span></div>'
               : `<p>Go to <a href="https://supabase.com" target="_blank">supabase.com</a>, create a new project (choose name, password, region), then copy the <strong>project ref</strong> from the dashboard URL:</p>
                 <pre>https://supabase.com/dashboard/project/<strong>THIS_PART</strong></pre>
-                <div class="info-box">Save your <strong>database password</strong> too &mdash; you'll need it in the next step for automatic schema setup.</div>
                 <div class="field">
                   <label for="project_ref">Project Reference</label>
                   <input type="text" id="project_ref" placeholder="e.g. abcdefghijklmnop" />
@@ -852,23 +826,13 @@
             </ol>
 
             <h3 style="color:var(--text);font-size:0.95rem;margin:1rem 0 0.5rem">B. Apply the Schema</h3>
-            <p>Enter your database password (the one you set when creating the Supabase project) and select your project's region:</p>
-            ${status.db_password
-              ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">DB password saved</span></div>'
-              : `<div class="field">
-                  <label for="db_password">Database Password</label>
-                  <input type="password" id="db_password" placeholder="Your Supabase database password" />
-                </div>`
+            <p>Click below to apply the schema using the Supabase Management API. Requires your <strong>Supabase access token</strong> (set in Step 1).</p>
+            ${status.supabase_access_token
+              ? '<div style="margin-bottom:0.75rem"><span class="badge badge-success">Access token set</span></div>'
+              : '<div style="margin-bottom:0.75rem"><span class="badge badge-warning">Access token required — set it in Step 1 or the sidebar</span></div>'
             }
-            <div class="field">
-              <label for="db_region">Database Region</label>
-              <select id="db_region" class="region-select">
-                ${REGIONS.map(r => `<option value="${r.value}"${detectedRegion === r.value ? " selected" : ""}>${r.label}</option>`).join("")}
-              </select>
-              <div class="hint region-hint">${detectedRegion ? "Auto-detected: " + detectedRegion + ". Override if incorrect." : "Select the region you chose when creating your Supabase project."}</div>
-            </div>
             <div class="btn-group" style="margin-top:0.5rem">
-              <button class="btn btn-success" id="btnApplySchema">Apply Schema Automatically</button>
+              <button class="btn btn-success" id="btnApplySchema" ${status.supabase_access_token ? '' : 'disabled'}>Apply Schema Automatically</button>
               <button class="btn btn-secondary" id="btnViewSchema">View Schema SQL</button>
             </div>
             <div class="terminal" id="schemaLog"></div>
@@ -906,35 +870,25 @@
         });
 
         document.getElementById("btnApplySchema")?.addEventListener("click", () => {
-          const pwInput = document.getElementById("db_password");
-          const pw = pwInput ? pwInput.value.trim() : "";
-          const region = document.getElementById("db_region").value;
+          const logEl = document.getElementById("schemaLog");
+          logEl.innerHTML = "";
+          appendTermLine(logEl, "[open-brain] Starting schema application...");
 
-          // Save password first if provided
-          const savePromise = pw ? saveCreds({ db_password: pw }) : Promise.resolve();
-
-          savePromise.then(() => {
-            const logEl = document.getElementById("schemaLog");
-            logEl.innerHTML = "";
-            appendTermLine(logEl, "[open-brain] Starting schema application...");
-            appendTermLine(logEl, `[open-brain] Region: ${region}`);
-
-            const es = new EventSource(`/api/run-schema?region=${encodeURIComponent(region)}`);
-            es.onmessage = (e) => {
-              const d = JSON.parse(e.data);
-              if (d.done) {
-                es.close();
-                if (!d.error && d.code === 0) {
-                  markManualStepDone(2);
-                  showToast("Schema applied successfully!", "success");
-                }
-                refreshStatus();
-                return;
+          const es = new EventSource("/api/run-schema");
+          es.onmessage = (e) => {
+            const d = JSON.parse(e.data);
+            if (d.done) {
+              es.close();
+              if (!d.error && d.code === 0) {
+                markManualStepDone(2);
+                showToast("Schema applied successfully!", "success");
               }
-              if (d.line) appendTermLine(logEl, d.line);
-            };
-            es.onerror = () => { es.close(); appendTermLine(logEl, "[error] Connection lost"); };
-          });
+              refreshStatus();
+              return;
+            }
+            if (d.line) appendTermLine(logEl, d.line);
+          };
+          es.onerror = () => { es.close(); appendTermLine(logEl, "[error] Connection lost"); };
         });
 
       } else if (step === 3) {
@@ -1216,13 +1170,6 @@
 
             <div class="tab-pane active" id="tab-validate">
               <p>Verify that your database, Edge Functions, and MCP endpoint are all working correctly.</p>
-              <div class="field">
-                <label for="test_region">Database Region (for DB test)</label>
-                <select id="test_region" class="region-select">
-                  ${REGIONS.map(r => `<option value="${r.value}"${detectedRegion === r.value ? " selected" : ""}>${r.label}</option>`).join("")}
-                </select>
-                <div class="hint region-hint">${detectedRegion ? "Auto-detected: " + detectedRegion + ". Override if incorrect." : "Select the region you chose when creating your Supabase project."}</div>
-              </div>
               <button class="btn btn-success" id="btnRunTest">Run Validation Tests</button>
               <div class="terminal" id="testLog"></div>
             </div>
@@ -1263,8 +1210,7 @@
                   <summary>Database schema fails to apply</summary>
                   <div class="ts-body">
                     <ul>
-                      <li><strong>Wrong region</strong> &mdash; the connection string includes a region. If you pick the wrong one, <code>psql</code> will time out. Check your project region in the Supabase dashboard under <strong>Settings &rarr; General</strong>.</li>
-                      <li><strong>Wrong password</strong> &mdash; this is the database password set when the Supabase project was created (not the access token). You can reset it under <strong>Settings &rarr; Database</strong>.</li>
+                      <li><strong>Invalid access token</strong> &mdash; the schema is applied via the Supabase Management API. Generate a new token from <strong>supabase.com/dashboard/account/tokens</strong> and update it in the sidebar.</li>
                       <li><strong>pgvector not enabled</strong> &mdash; go to <strong>Database &rarr; Extensions</strong> in the dashboard and enable <code>vector</code> before applying the schema.</li>
                     </ul>
                   </div>
@@ -1452,8 +1398,7 @@
         document.getElementById("btnRunTest").addEventListener("click", () => {
           const logEl = document.getElementById("testLog");
           logEl.innerHTML = "";
-          const region = document.getElementById("test_region").value;
-          const es = new EventSource("/api/run-test?region=" + encodeURIComponent(region));
+          const es = new EventSource("/api/run-test");
           es.onmessage = (e) => {
             const d = JSON.parse(e.data);
             if (d.done) {
