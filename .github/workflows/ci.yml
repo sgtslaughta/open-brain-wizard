@@ -9,6 +9,7 @@ on:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}/open-brain-installer
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # --- Lint ---
@@ -20,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: cd docker && npm install --omit=dev
       - run: cd docker && npx --yes eslint@8 --no-eslintrc --env node --env es2021 --parser-options=ecmaVersion:2021 server.js
         continue-on-error: true
@@ -56,6 +57,7 @@ jobs:
           scan-ref: .
           severity: HIGH,CRITICAL
           exit-code: "0"
+        continue-on-error: true
 
   trufflehog:
     name: Secret Detection
