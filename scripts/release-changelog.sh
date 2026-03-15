@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Extract the changelog section for a given version for GitLab release description.
 # Usage: release-changelog.sh <version>
 # Version can be 1.0.0 or v1.0.0. Outputs the matching ## [X.Y.Z] block to stdout.

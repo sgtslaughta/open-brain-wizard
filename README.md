@@ -2,7 +2,7 @@
 
 ![open-brain-wizard logo](media/ob.png)
 
-One database, one AI gateway, one chat channel. Capture thoughts from Slack and query them by meaning from any MCP-connected AI (Claude, ChatGPT, Cursor, etc.). No middleware, no SaaS chains.
+A personal AI memory system. Capture thoughts from Slack, learn preferences, track projects, store environment configs, and query everything by meaning from any MCP-connected AI (Claude, ChatGPT, Cursor, Copilot). One Supabase project, one MCP server, zero middleware.
 
 ## Source / Inspiration
 
@@ -18,6 +18,22 @@ Thank you Nate for the inspiration!
 
 - **Capture:** A Slack channel where you type a thought; it is embedded, classified, and stored in Supabase automatically; you get a confirmation reply.
 - **Retrieval:** An MCP server (hosted on Supabase) so any AI assistant can search your brain by meaning and write to it.
+- **Preferences:** Models learn your coding style, communication preferences, and workflow habits across sessions.
+- **Projects:** A registry of all your repos with cross-project pattern search ("How did I handle auth before?").
+- **Context:** Per-project milestones, tasks, bugs, decisions, and a troubleshooting knowledge base.
+- **Environment:** Store your full dev setup and generate bootstrap scripts for new machines.
+- **Creative:** Decision journal, persistent snippets, session continuity, skill tracker, and people graph.
+
+### MCP Tools (32)
+
+| Module | Tools | Purpose |
+| --- | --- | --- |
+| Thoughts | `capture_thought`, `search_thoughts`, `list_thoughts`, `thought_stats` | Capture and semantic search |
+| Preferences | `get_preferences`, `set_preference`, `suggest_preference`, `review_suggestions` | Learn and recall user preferences |
+| Projects | `register_project`, `search_projects`, `save_pattern`, `find_patterns` | Cross-project knowledge |
+| Context | `log_context`, `get_project_context`, `update_context`, `log_issue`, `search_issues` | Project lifecycle and troubleshooting |
+| Environment | `save_config`, `get_environment`, `export_bootstrap`, `list_environments` | Named dev environment management |
+| Creative | `log_decision`, `search_decisions`, `save_snippet`, `search_snippets`, `start_session`, `end_session`, `resume_session`, `update_skill`, `get_skills`, `lookup_person`, `update_person` | Decisions, snippets, sessions, skills, people |
 
 ## Services
 
@@ -79,14 +95,13 @@ The container logs credential status at startup:
 
 ```
 ============================================
-  open-brain Installer
+  open-brain-wizard
 ============================================
   UID/GID: 1000:1000
   Data dir: /data
   credentials.yaml: FOUND
     supabase_access_token: SET
     project_ref: SET
-    db_password: ---
     openrouter_api_key: SET
     slack_bot_token: SET
     slack_capture_channel: SET
@@ -112,8 +127,12 @@ The container logs credential status at startup:
 
 - `docker/` — Dockerfile, entrypoint, and web installer (Node server + wizard UI).
 - `scripts/` — Install, link, set-secrets, deploy, and doctor scripts for Windows (PowerShell) and Linux/Mac (Bash).
-- `supabase/functions/` — Edge Functions: `ingest-thought` (Slack -> DB) and `open-brain-mcp` (MCP server).
-- `sql/schema.sql` — Database schema (idempotent, safe to re-run).
+- `supabase/functions/open-brain-mcp/` — MCP server Edge Function with modular tool architecture:
+  - `index.ts` — Server setup, auth, routing.
+  - `tools/` — `thoughts.ts`, `preferences.ts`, `projects.ts`, `context.ts`, `environment.ts`, `creative.ts`.
+  - `lib/` — `embedding.ts`, `metadata.ts`, `sensitive.ts` (shared utilities).
+- `supabase/functions/ingest-thought/` — Slack capture Edge Function.
+- `sql/schema.sql` — Database schema (13 tables, 10 RPC functions, idempotent, safe to re-run).
 - `credentials.yaml.template` — Copy to `credentials.yaml`, fill in, then scripts read from it.
 - `.gitlab-ci.yml` — CI/CD pipeline: lint, security scan, build, and publish to GitLab container registry.
 

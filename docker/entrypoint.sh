@@ -36,7 +36,7 @@ if [ "$(id -u)" = "0" ]; then
   if [ -f "${DATA_DIR}/credentials.yaml" ]; then
     echo "  credentials.yaml: FOUND"
     # Show which keys are set (values masked)
-    for key in supabase_access_token project_ref db_password openrouter_api_key slack_bot_token slack_capture_channel mcp_access_key; do
+    for key in supabase_access_token project_ref openrouter_api_key slack_bot_token slack_capture_channel mcp_access_key; do
       val=$(grep -E "^${key}:" "${DATA_DIR}/credentials.yaml" 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//' | sed 's/^["'"'"']//;s/["'"'"']$//' || true)
       if [ -n "$val" ] && [ "$val" != "" ] && [ "$val" != "YOUR_PROJECT_REF" ] && [ "$val" != "sk-or-v1-..." ] && [ "$val" != "xoxb-..." ] && [ "$val" != "C0..." ]; then
         echo "    ${key}: SET"
@@ -57,7 +57,7 @@ else
   echo "  Data dir: ${DATA_DIR}"
   if [ -f "${DATA_DIR}/credentials.yaml" ]; then
     echo "  credentials.yaml: FOUND"
-    for key in supabase_access_token project_ref db_password openrouter_api_key slack_bot_token slack_capture_channel mcp_access_key; do
+    for key in supabase_access_token project_ref openrouter_api_key slack_bot_token slack_capture_channel mcp_access_key; do
       val=$(grep -E "^${key}:" "${DATA_DIR}/credentials.yaml" 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//' | sed 's/^["'"'"']//;s/["'"'"']$//' || true)
       if [ -n "$val" ] && [ "$val" != "" ] && [ "$val" != "YOUR_PROJECT_REF" ] && [ "$val" != "sk-or-v1-..." ] && [ "$val" != "xoxb-..." ] && [ "$val" != "C0..." ]; then
         echo "    ${key}: SET"

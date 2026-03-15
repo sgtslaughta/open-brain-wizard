@@ -1,6 +1,6 @@
 {
   "name": "open-brain-installer",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Web installer for open-brain-wizard",
   "main": "server.js",
   "dependencies": {

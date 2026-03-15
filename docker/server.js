@@ -38,7 +38,6 @@ function readCredentialsFromFile(filePath) {
     const obj = yaml.parse(raw) || {};
     return {
       project_ref: obj.project_ref || "",
-      db_password: obj.db_password || "",
       openrouter_api_key: obj.openrouter_api_key || "",
       slack_bot_token: obj.slack_bot_token || "",
       slack_capture_channel: obj.slack_capture_channel || "",
@@ -55,7 +54,6 @@ function credentialsStatus(creds, filePresent) {
   return {
     file_present: present,
     project_ref: isSet(creds?.project_ref),
-    db_password: isSet(creds?.db_password),
     openrouter_api_key: isSet(creds?.openrouter_api_key),
     slack_bot_token: isSet(creds?.slack_bot_token),
     slack_capture_channel: isSet(creds?.slack_capture_channel),
@@ -66,7 +64,6 @@ function credentialsStatus(creds, filePresent) {
 
 const CRED_KEYS = [
   "project_ref",
-  "db_password",
   "openrouter_api_key",
   "slack_bot_token",
   "slack_capture_channel",
@@ -139,7 +136,7 @@ app.get("/api/credentials-status", (req, res) => {
   res.json(credentialsStatus(creds, filePresent));
 });
 
-const MASKED_KEYS = new Set(["openrouter_api_key", "slack_bot_token", "mcp_access_key", "supabase_access_token", "db_password"]);
+const MASKED_KEYS = new Set(["openrouter_api_key", "slack_bot_token", "mcp_access_key", "supabase_access_token"]);
 
 function maskValue(key, value) {
   if (!value || !isSet(value)) return "";
@@ -223,14 +220,36 @@ app.get("/api/schema", (req, res) => {
   }
 });
 
-// SSE: Apply schema via psql
+// Run a SQL query via Supabase Management API
+async function supabaseQuery(ref, token, sql) {
+  const resp = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: sql }),
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    throw new Error(`API returned ${resp.status}: ${body.slice(0, 200)}`);
+  }
+  return resp.json();
+}
+
+// SSE: Apply schema via Supabase Management API
 app.get("/api/run-schema", (req, res) => {
   const creds = getCredentials(req);
   if (!creds || !isSet(creds.project_ref)) {
     return res.status(400).json({ error: "Project ref is required. Complete Step 1 first." });
   }
-  if (!isSet(creds.db_password)) {
-    return res.status(400).json({ error: "Database password is required. Enter it in Step 2 or the sidebar." });
+
+  const tokenFromCreds = isSet(creds.supabase_access_token) ? creds.supabase_access_token.trim() : null;
+  const tokenFromEnv = process.env.SUPABASE_ACCESS_TOKEN || null;
+  const token = tokenFromCreds || tokenFromEnv;
+
+  if (!token) {
+    return res.status(400).json({ error: "Supabase access token is required. Enter it in Step 1 or the sidebar." });
   }
 
   const schemaPath = path.join(OPEN_BRAIN_ROOT, "sql", "schema.sql");
@@ -248,51 +267,83 @@ app.get("/api/run-schema", (req, res) => {
   }
 
   const ref = creds.project_ref.trim();
-  const password = creds.db_password.trim();
-  const region = (req.query.region || "us-east-1").replace(/[^a-z0-9-]/gi, "");
-  const connStr = `postgresql://postgres.${ref}:${encodeURIComponent(password)}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
 
-  send("[open-brain] Connecting to Supabase database...");
-  send(`[open-brain] Host: aws-0-${region}.pooler.supabase.com:6543`);
-  send(`[open-brain] User: postgres.${ref}`);
-  send(`[open-brain] Applying schema from sql/schema.sql...`);
+  send("[open-brain] Applying schema via Supabase Management API...");
+  send(`[open-brain] Project: ${ref}`);
 
-  const child = spawn("psql", [connStr, "-f", schemaPath], {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PGCONNECT_TIMEOUT: "10" },
-  });
+  const sql = fs.readFileSync(schemaPath, "utf8");
 
-  child.stdout.setEncoding("utf8");
-  child.stderr.setEncoding("utf8");
+  // Split SQL into individual statements for better error reporting.
+  // We run them in a single transaction via the API.
+  const apiUrl = `https://api.supabase.com/v1/projects/${ref}/database/query`;
 
-  child.stdout.on("data", (chunk) => {
-    chunk.split("\n").forEach((line) => {
-      if (line.length) send(line);
-    });
-  });
+  (async () => {
+    try {
+      send(`[open-brain] Sending schema (${(sql.length / 1024).toFixed(1)} KB) to database...`);
 
-  child.stderr.on("data", (chunk) => {
-    chunk.split("\n").forEach((line) => {
-      if (line.length) send(line);
-    });
-  });
+      const resp = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: sql }),
+      });
 
-  child.on("close", (code) => {
-    if (code === 0) {
-      send("[open-brain] Schema applied successfully.");
-    } else {
-      send(`[open-brain] psql exited with code ${code}. Check connection details and try again.`);
-      send("[open-brain] Tip: If the region is wrong, the connection may fail. Check your Supabase dashboard for the correct region.");
+      send(`[open-brain] API response: HTTP ${resp.status}`);
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        send(`[open-brain] [FAIL] API error: ${body.slice(0, 500)}`);
+        res.write("data: " + JSON.stringify({ done: true, code: 1 }) + "\n\n");
+        res.end();
+        return;
+      }
+
+      const data = await resp.json();
+
+      // The API returns an array of result objects (one per statement)
+      // Check for errors in the results
+      let hasError = false;
+      if (Array.isArray(data)) {
+        let created = 0;
+        let errors = 0;
+        for (const result of data) {
+          if (result.error) {
+            // Skip "already exists" errors — they're expected with IF NOT EXISTS
+            if (result.error.includes("already exists")) {
+              continue;
+            }
+            send(`[open-brain] [ERROR] ${result.error}`);
+            errors++;
+            hasError = true;
+          } else {
+            created++;
+          }
+        }
+        send(`[open-brain] Executed ${data.length} statement(s): ${created} succeeded, ${errors} error(s)`);
+      } else if (typeof data === "object" && data.error) {
+        send(`[open-brain] [ERROR] ${data.error}`);
+        hasError = true;
+      } else {
+        // Single result or unexpected format — log it
+        send(`[open-brain] Result: ${JSON.stringify(data).slice(0, 300)}`);
+      }
+
+      if (!hasError) {
+        send("[open-brain] Schema applied successfully.");
+      } else {
+        send("[open-brain] Schema applied with errors — review the output above.");
+      }
+
+      res.write("data: " + JSON.stringify({ done: true, code: hasError ? 1 : 0 }) + "\n\n");
+      res.end();
+    } catch (err) {
+      send(`[open-brain] Error: ${err.message}`);
+      res.write("data: " + JSON.stringify({ done: true, error: err.message }) + "\n\n");
+      res.end();
     }
-    res.write("data: " + JSON.stringify({ done: true, code }) + "\n\n");
-    res.end();
-  });
-
-  child.on("error", (err) => {
-    send(`[open-brain] Error: ${err.message}`);
-    res.write("data: " + JSON.stringify({ done: true, error: err.message }) + "\n\n");
-    res.end();
-  });
+  })();
 });
 
 app.get("/api/run-step", (req, res) => {
@@ -425,34 +476,48 @@ app.get("/api/run-test", (req, res) => {
   const key = isSet(creds.mcp_access_key) ? creds.mcp_access_key.trim() : null;
   const base = `https://${ref}.supabase.co/functions/v1`;
 
+  const token = (isSet(creds.supabase_access_token) ? creds.supabase_access_token.trim() : null) || process.env.SUPABASE_ACCESS_TOKEN;
+
   (async () => {
-    // Test 1: Database connectivity
+    // Test 1: Database connectivity via Management API
     send("[test] ── Database ──────────────────────────");
-    if (isSet(creds.db_password)) {
-      const region = (req.query.region || "us-east-1").replace(/[^a-z0-9-]/gi, "");
-      const password = creds.db_password.trim();
-      const connStr = `postgresql://postgres.${ref}:${encodeURIComponent(password)}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
+    if (token) {
       try {
-        const out = await runCommand("psql", [connStr, "-c", "SELECT count(*) AS thought_count FROM thoughts;"], { PGCONNECT_TIMEOUT: "10" });
-        send("[test] Connected to database successfully");
-        const match = out.match(/(\d+)/);
-        const count = match ? match[1] : "?";
+        // Check thoughts table
+        const countResult = await supabaseQuery(ref, token, "SELECT count(*) AS thought_count FROM thoughts;");
+        send("[test] Connected to database via Management API");
+        const count = Array.isArray(countResult) && countResult[0] ? countResult[0].thought_count : "?";
         send(`[test] Thoughts table exists — ${count} row(s) found`);
 
         // Check match_thoughts function exists
-        const fnOut = await runCommand("psql", [connStr, "-c", "SELECT proname FROM pg_proc WHERE proname = 'match_thoughts';"], { PGCONNECT_TIMEOUT: "10" });
-        if (fnOut.includes("match_thoughts")) {
+        const fnResult = await supabaseQuery(ref, token, "SELECT proname FROM pg_proc WHERE proname = 'match_thoughts';");
+        if (Array.isArray(fnResult) && fnResult.length > 0) {
           send("[test] match_thoughts function exists");
         } else {
           send("[test] [WARN] match_thoughts function not found — re-run schema");
         }
 
         // Check RLS is enabled
-        const rlsOut = await runCommand("psql", [connStr, "-c", "SELECT relrowsecurity FROM pg_class WHERE relname = 'thoughts';"], { PGCONNECT_TIMEOUT: "10" });
-        if (rlsOut.includes("t")) {
+        const rlsResult = await supabaseQuery(ref, token, "SELECT relrowsecurity FROM pg_class WHERE relname = 'thoughts';");
+        if (Array.isArray(rlsResult) && rlsResult[0] && rlsResult[0].relrowsecurity === true) {
           send("[test] Row Level Security is enabled");
         } else {
           send("[test] [WARN] Row Level Security is not enabled on thoughts table");
+        }
+
+        // Check new tables from expanded schema
+        const tablesResult = await supabaseQuery(ref, token,
+          "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN " +
+          "('thoughts','preferences','preference_suggestions','projects','project_patterns'," +
+          "'project_context','troubleshooting_log','environment_configs','decisions','snippets'," +
+          "'sessions','skills','people') ORDER BY tablename;"
+        );
+        if (Array.isArray(tablesResult)) {
+          const tableNames = tablesResult.map(r => r.tablename);
+          send(`[test] Schema tables found: ${tableNames.join(", ")} (${tableNames.length}/13)`);
+          if (tableNames.length < 13) {
+            send("[test] [WARN] Some tables are missing — re-run Apply Schema");
+          }
         }
 
         results.db = true;
@@ -462,8 +527,8 @@ app.get("/api/run-test", (req, res) => {
         results.db = false;
       }
     } else {
-      send("[test] [WARN] Skipping database test — no db_password saved");
-      send("[test] (Set it via the sidebar or Step 3 to enable this test)");
+      send("[test] [WARN] Skipping database test — no supabase_access_token");
+      send("[test] (Set it via the sidebar or Step 1 to enable this test)");
       results.db = null;
     }
 
@@ -702,25 +767,6 @@ app.get("/api/run-test", (req, res) => {
   });
 });
 
-function runCommand(cmd, args, extraEnv = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...extraEnv },
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (d) => { stdout += d; });
-    child.stderr.on("data", (d) => { stderr += d; });
-    child.on("close", (code) => {
-      if (code !== 0) reject(new Error(stderr.trim() || `Exit code ${code}`));
-      else resolve(stdout);
-    });
-    child.on("error", reject);
-  });
-}
 
 // Detect project region via Supabase Management API
 app.get("/api/region", async (req, res) => {
@@ -732,15 +778,17 @@ app.get("/api/region", async (req, res) => {
   if (!token) {
     return res.json({ region: null, error: "No access token" });
   }
+  const ref = creds.project_ref.trim();
   try {
-    const resp = await fetch(`https://api.supabase.com/v1/projects/${creds.project_ref.trim()}`, {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${ref}`, {
       headers: { "Authorization": `Bearer ${token}` },
     });
     if (!resp.ok) {
-      return res.json({ region: null, error: `API returned ${resp.status}` });
+      const body = await resp.text().catch(() => "");
+      return res.json({ region: null, error: `API returned ${resp.status}: ${body.slice(0, 100)}` });
     }
     const data = await resp.json();
-    res.json({ region: data.region || null });
+    res.json({ region: data.region || null, status: data.status || null });
   } catch (e) {
     res.json({ region: null, error: e.message });
   }
