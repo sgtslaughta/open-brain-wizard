@@ -43,6 +43,19 @@ Thank you Nate for the inspiration!
 | OpenRouter | Embeddings and metadata (LLM) | ~$5 lasts months |
 | Slack      | Capture interface             | Free Tier        |
 
+### Fully local models (optional)
+
+Embeddings and metadata extraction can run against any OpenAI-compatible endpoint, such as [Ollama](https://ollama.com), so captured text never leaves your machine. Set these edge function secrets:
+
+| Secret | Default | Local example |
+| ------ | ------- | ------------- |
+| `EMBED_BASE_URL` | `https://openrouter.ai/api/v1` | `http://ollama:11434/v1` |
+| `EMBED_MODEL` | `openai/text-embedding-3-small` | `nomic-embed-text` |
+| `LLM_BASE_URL` | `https://openrouter.ai/api/v1` | `http://ollama:11434/v1` |
+| `LLM_MODEL` | `openai/gpt-4o-mini` | `qwen2.5:3b` |
+
+The embedding dimension must match the schema. `sql/schema.sql` uses `vector(1536)`; for a 768-dimension model such as `nomic-embed-text`, apply the schema with `sed 's/vector(1536)/vector(768)/g' sql/schema.sql`. Choose the model before storing data, since vectors from different models cannot be compared.
+
 ## Quick start
 
 ### Option A: Pre-built image (fastest)

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-07
+
+### Added
+
+- **Configurable model providers** — `EMBED_BASE_URL`, `EMBED_MODEL`, `LLM_BASE_URL`, `LLM_MODEL` edge function secrets select any OpenAI-compatible endpoint (e.g. a local Ollama server). Defaults are unchanged (OpenRouter, `text-embedding-3-small`, `gpt-4o-mini`).
+
+### Changed
+
+- `OPENROUTER_API_KEY` is optional when both endpoints are local; the `Authorization` header is only sent when a key is set.
+- Embedding errors no longer name OpenRouter specifically.
+
 ## [2.0.0] - 2026-03-15
 
 ### Added

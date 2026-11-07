@@ -21,14 +21,15 @@ import { registerCreativeTools } from "./tools/creative.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
+// Optional when EMBED_BASE_URL / LLM_BASE_URL point at a local server.
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const MCP_ACCESS_KEY = Deno.env.get("MCP_ACCESS_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const server = new McpServer({
   name: "open-brain",
-  version: "2.0.0",
+  version: "2.1.0",
 });
 
 // Register all tool modules
