@@ -10,25 +10,30 @@ const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
 const SLACK_CAPTURE_CHANNEL = Deno.env.get("SLACK_CAPTURE_CHANNEL")!;
 
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+// Provider settings mirror open-brain-mcp/lib (OpenAI-compatible endpoints).
+const EMBED_BASE_URL = Deno.env.get("EMBED_BASE_URL") ?? "https://openrouter.ai/api/v1";
+const EMBED_MODEL = Deno.env.get("EMBED_MODEL") ?? "openai/text-embedding-3-small";
+const LLM_BASE_URL = Deno.env.get("LLM_BASE_URL") ?? "https://openrouter.ai/api/v1";
+const LLM_MODEL = Deno.env.get("LLM_MODEL") ?? "openai/gpt-4o-mini";
+const AUTH = OPENROUTER_API_KEY ? { "Authorization": `Bearer ${OPENROUTER_API_KEY}` } : {};
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function getEmbedding(text: string): Promise<number[]> {
-  const r = await fetch(`${OPENROUTER_BASE}/embeddings`, {
+  const r = await fetch(`${EMBED_BASE_URL}/embeddings`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text }),
+    headers: { ...AUTH, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: EMBED_MODEL, input: text }),
   });
   const d = await r.json();
   return d.data[0].embedding;
 }
 
 async function extractMetadata(text: string): Promise<Record<string, unknown>> {
-  const r = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
     method: "POST",
-    headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+    headers: { ...AUTH, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model: LLM_MODEL,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `Extract metadata from the user's captured thought. Return JSON with:

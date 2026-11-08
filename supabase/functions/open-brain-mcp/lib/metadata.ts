@@ -1,17 +1,20 @@
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+// Any OpenAI-compatible chat endpoint works (OpenRouter by default, or a local
+// Ollama server). The model must support response_format json_object.
+const LLM_BASE_URL = Deno.env.get("LLM_BASE_URL") ?? "https://openrouter.ai/api/v1";
+const LLM_MODEL = Deno.env.get("LLM_MODEL") ?? "openai/gpt-4o-mini";
 
 export async function extractMetadata(
   text: string,
   apiKey: string
 ): Promise<Record<string, unknown>> {
-  const r = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const r = await fetch(`${LLM_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model: LLM_MODEL,
       response_format: { type: "json_object" },
       messages: [
         {
